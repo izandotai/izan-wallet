@@ -22,6 +22,7 @@
     "vault.msg.created": "Wallet created. Write down the recovery phrase and store it offline.",
     "vault.msg.mismatch": "The passphrases do not match.",
     "vault.msg.empty_pass": "The passphrase is empty.",
+    "vault.err.mnemonic": "The recovery phrase is not valid.",
     "vault.err.unlock": "Wrong passphrase or corrupted vault.",
     "vault.warn.backup": "Anyone who knows this phrase can spend your funds. Never share it."
 }

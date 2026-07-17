@@ -22,6 +22,7 @@
     "vault.msg.created": "지갑이 생성되었습니다. 복구 문구를 적어 오프라인에 보관하세요.",
     "vault.msg.mismatch": "암호가 일치하지 않습니다.",
     "vault.msg.empty_pass": "암호가 비어 있습니다.",
+    "vault.err.mnemonic": "복구 문구가 올바르지 않습니다.",
     "vault.err.unlock": "암호가 틀렸거나 금고 파일이 손상되었습니다.",
     "vault.warn.backup": "이 문구를 아는 사람은 누구나 자산을 사용할 수 있습니다. 절대 공유하지 마세요."
 }

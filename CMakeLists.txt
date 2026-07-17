@@ -277,6 +277,15 @@ if(IZAN_BUILD_UI AND WIN32)
     add_executable(izan_ui_smoke ui/smoke_main.cpp)
     target_link_libraries(izan_ui_smoke PRIVATE izan_ui_shell)
     izan_ui_copy_assets(izan_ui_smoke)
+
+    # The wallet. One binary, two personalities (UI / --keyd-child).
+    add_executable(izan
+        apps/izan_main.cpp
+        ui/pages/vault_page.cpp
+    )
+    target_link_libraries(izan PRIVATE izan_ui_shell izan_i18n izan_keyd
+        izan_crypto izan_secure glaze::glaze)
+    izan_ui_copy_assets(izan)
 endif()
 
 enable_testing()

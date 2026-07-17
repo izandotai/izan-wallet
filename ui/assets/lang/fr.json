@@ -22,6 +22,7 @@
     "vault.msg.created": "Portefeuille créé. Notez la phrase de récupération et conservez-la hors ligne.",
     "vault.msg.mismatch": "Les phrases secrètes ne correspondent pas.",
     "vault.msg.empty_pass": "La phrase secrète est vide.",
+    "vault.err.mnemonic": "La phrase de récupération n'est pas valide.",
     "vault.err.unlock": "Phrase secrète incorrecte ou coffre endommagé.",
     "vault.warn.backup": "Quiconque connaît cette phrase peut dépenser vos fonds. Ne la partagez jamais."
 }

@@ -22,6 +22,7 @@
     "vault.msg.created": "Portafoglio creato. Annota la frase di recupero e conservala offline.",
     "vault.msg.mismatch": "Le passphrase non coincidono.",
     "vault.msg.empty_pass": "La passphrase è vuota.",
+    "vault.err.mnemonic": "La frase di recupero non è valida.",
     "vault.err.unlock": "Passphrase errata o cassaforte danneggiata.",
     "vault.warn.backup": "Chiunque conosca questa frase può spendere i tuoi fondi. Non condividerla mai."
 }

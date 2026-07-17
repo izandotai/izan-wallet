@@ -22,6 +22,7 @@
     "vault.msg.created": "钱包已创建。请抄写助记词并离线保存。",
     "vault.msg.mismatch": "两次输入的口令不一致。",
     "vault.msg.empty_pass": "口令为空。",
+    "vault.err.mnemonic": "助记词无效。",
     "vault.err.unlock": "口令错误或金库文件已损坏。",
     "vault.warn.backup": "任何知道这组助记词的人都能动用你的资产，绝不要泄露。"
 }

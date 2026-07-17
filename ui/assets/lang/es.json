@@ -22,6 +22,7 @@
     "vault.msg.created": "Cartera creada. Anota la frase de recuperación y guárdala sin conexión.",
     "vault.msg.mismatch": "Las frases de contraseña no coinciden.",
     "vault.msg.empty_pass": "La frase de contraseña está vacía.",
+    "vault.err.mnemonic": "La frase de recuperación no es válida.",
     "vault.err.unlock": "Frase de contraseña incorrecta o bóveda dañada.",
     "vault.warn.backup": "Cualquiera que conozca esta frase puede gastar tus fondos. No la compartas nunca."
 }
