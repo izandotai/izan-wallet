@@ -230,6 +230,7 @@ add_library(izan_domain STATIC
     domain/assets/portfolio.cpp
     domain/assets/token_registry.cpp
     domain/tx/eip1559.cpp
+    domain/tx/txflow.cpp
 )
 target_include_directories(izan_domain PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(izan_domain PUBLIC izan_units
@@ -318,6 +319,7 @@ add_executable(izan_tests
     tests/config_trust_test.cpp
     tests/i18n_test.cpp
     tests/tx_test.cpp
+    tests/txflow_test.cpp
     tests/keyd_test.cpp
     tests/linkbits_test.cpp
     tests/proposals_test.cpp

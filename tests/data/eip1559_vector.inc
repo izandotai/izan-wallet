@@ -19,3 +19,4 @@ inline constexpr const char* kVecS
     = "2fe8861efaeaa1618d64b77ac7c70f22107f6a7aab1f439bf2138987cb15c962";
 inline constexpr const char* kVecHash
     = "97e82f647dfee1fe8613d3ca2e26e4afb2780926881e3bd5b06188133835435e";
+inline constexpr uint64_t kVecBlock = 0x185f194;
