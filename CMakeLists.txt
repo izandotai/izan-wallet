@@ -284,11 +284,17 @@ if(IZAN_BUILD_UI AND WIN32)
     # The wallet. One binary, two personalities (UI / --keyd-child).
     add_executable(izan WIN32
         apps/izan_main.cpp
+        ui/pages/portfolio_page.cpp
         ui/pages/vault_page.cpp
     )
     target_link_libraries(izan PRIVATE izan_ui_shell izan_i18n izan_keyd
-        izan_crypto izan_secure glaze::glaze)
+        izan_crypto izan_secure izan_domain izan_units glaze::glaze)
     izan_ui_copy_assets(izan)
+    add_custom_command(TARGET izan POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/data
+            $<TARGET_FILE_DIR:izan>/data
+        COMMENT "Copying chain/token config for izan")
 endif()
 
 enable_testing()

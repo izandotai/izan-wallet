@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -17,6 +18,7 @@
 
 #include "keyd/child.hpp"
 #include "ui/i18n/catalog.hpp"
+#include "ui/pages/portfolio_page.hpp"
 #include "ui/pages/vault_page.hpp"
 #include "ui/shell/app.hpp"
 #include "ui/shell/chrome_state.hpp"
@@ -128,6 +130,16 @@ int main(int argc, char** argv)
 
     ui::VaultPage vault(default_vault_path(), self_exe_path());
 
+    // A broken chain/token config takes down the portfolio pane, not
+    // the wallet: the vault stays reachable and the error is shown.
+    std::optional<ui::PortfolioPage> portfolio;
+    std::string portfolioError;
+    try {
+        portfolio.emplace(ui::executable_dir() / "data");
+    } catch (const std::exception& e) {
+        portfolioError = e.what();
+    }
+
     app.set_render_callback([&] {
         app.begin_frame();
 
@@ -199,6 +211,15 @@ int main(int argc, char** argv)
         ImGui::PopStyleVar();
 
         vault.draw(app.window(), tr);
+        if (portfolio) {
+            portfolio->draw(tr);
+        } else {
+            ImGui::Begin(
+                (std::string(tr("portfolio.title")) + "###portfolio-page")
+                    .c_str());
+            ImGui::TextWrapped("%s", portfolioError.c_str());
+            ImGui::End();
+        }
 
         ui::draw_status_bar(chrome, tr("status.ready"));
         ui::draw_snap_layout_popup(app.window(), chrome);
