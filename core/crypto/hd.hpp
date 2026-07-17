@@ -8,7 +8,12 @@
 #include <string_view>
 
 extern "C" {
+// Upstream header trips C++20's volatile-parameter deprecation; not ours to
+// fix, not ours to drown in either.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wvolatile"
 #include <bip32.h>
+#pragma GCC diagnostic pop
 }
 
 namespace izan::crypto {
@@ -31,6 +36,9 @@ public:
 
     // Uncompressed secp256k1 public key, 0x04 || X || Y.
     std::array<uint8_t, 65> public_key_uncompressed() const;
+
+    // Compressed secp256k1 public key, 33 bytes.
+    std::array<uint8_t, 33> public_key_compressed() const;
 
     ~HdKey();
     HdKey(const HdKey&) = default;

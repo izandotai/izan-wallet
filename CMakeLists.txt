@@ -86,6 +86,7 @@ endif()
 
 add_library(izan_crypto STATIC
     core/crypto/bip39.cpp
+    core/crypto/btc.cpp
     core/crypto/eth.cpp
     core/crypto/hd.cpp
 )
@@ -95,6 +96,7 @@ target_link_libraries(izan_crypto PUBLIC izan_trezor)
 enable_testing()
 add_executable(izan_tests
     tests/bip39_test.cpp
+    tests/btc_test.cpp
     tests/eth_test.cpp
     tests/hd_test.cpp
 )
