@@ -19,6 +19,20 @@ if(MINGW)
     add_link_options(-static)
 endif()
 
+# Distribution builds (-DCMAKE_BUILD_TYPE=Release): strip symbols, drop
+# unreferenced sections and scrub local source paths. A shipped binary
+# must carry no home-directory strings and no debug info — both leak
+# the builder's machine and break byte-identical reproduction. Everyday
+# builds stay RelWithDebInfo.
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    add_compile_options(-ffunction-sections -fdata-sections
+        "-ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=.")
+    add_link_options(-Wl,--gc-sections)
+    if(MINGW)
+        add_link_options(-s)
+    endif()
+endif()
+
 include(FetchContent)
 include(cmake/openssl.cmake)
 

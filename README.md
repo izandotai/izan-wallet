@@ -50,6 +50,19 @@ ctest --test-dir build
 Binaries are fully static; the test executable's import table is audited to
 contain nothing beyond Windows system libraries.
 
+Distribution builds strip symbols, drop unreferenced sections and scrub
+the builder's source paths out of the binaries:
+
+```
+cmake -S . -B build-dist -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build-dist
+```
+
+Byte-identical reproduction additionally requires the canonical build
+path stated in the release notes: OpenSSL embeds its install prefix as
+an inert string (never dereferenced — config autoloading is compiled
+out and a static build loads no engines or providers).
+
 ## License
 
 MIT

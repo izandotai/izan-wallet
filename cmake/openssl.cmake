@@ -30,9 +30,16 @@ ExternalProject_Add(openssl_ep
     PREFIX ${IZAN_OPENSSL_PREFIX}
     DOWNLOAD_EXTRACT_TIMESTAMP ON
     BUILD_IN_SOURCE ON
+    # no-autoload-config: never read openssl.cnf — a wallet must not
+    # take engine/provider directives from a file on disk. The fixed
+    # --openssldir keeps the builder's home directory out of the binary
+    # (the path is embedded verbatim) and points nowhere by design.
     CONFIGURE_COMMAND perl <SOURCE_DIR>/Configure ${IZAN_OPENSSL_TARGET}
-        no-shared no-tests no-apps no-docs no-legacy
+        no-shared no-tests no-apps no-docs no-legacy no-autoload-config
         --prefix=${IZAN_OPENSSL_INSTALL} --libdir=lib
+        # Drive-letter literal: msys perl rewrites POSIX-style paths to
+        # its own root, which would leak the builder's home again.
+        --openssldir=C:/izan/no-openssl-dir
     BUILD_COMMAND make -j${IZAN_OPENSSL_JOBS}
     INSTALL_COMMAND make install_sw
     BUILD_BYPRODUCTS
