@@ -6,6 +6,8 @@
 #include <imgui.h>
 
 #include <functional>
+#include <utility>
+#include <vector>
 
 struct GLFWwindow;
 
@@ -50,5 +52,16 @@ void dock_splitter_dblclick_reset(unsigned int dockspace_id);
 // the same frame lays out correctly. Splitter drags never change the
 // host size, so this stays silent and cannot fight them.
 void dock_ratio_guard_prepass(unsigned int dockspace_id, const ImVec2& size);
+
+// The ledger is session memory; these let the host persist it across
+// runs. The wire form is positional — splitter ratios in depth-first
+// order over the dockspace's split nodes — because nothing else is
+// stable: node ids get renumbered between the live tree and the saved
+// ini, and SizeRef is overwritten with already-mangled sizes by
+// imgui's lock-size-once paths before the first prepass can read it.
+// Imported ratios are staged and installed as each split materializes;
+// values outside (0.02, 0.98) are ignored there.
+std::vector<float> dock_ratio_ledger_export(unsigned int dockspace_id);
+void dock_ratio_ledger_import(const std::vector<float>& ratios);
 
 }

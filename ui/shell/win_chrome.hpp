@@ -30,6 +30,11 @@ struct WorkArea {
 void toggle_window_maximized(GLFWwindow* window);
 
 void install_custom_window_chrome(GLFWwindow* window);
+// Places the window by raw screen rect. With the custom chrome the
+// client area IS the window rect; glfwSetWindowPos/Size would pad the
+// numbers by decoration insets this window no longer has, drifting the
+// frame a border's width per launch.
+void set_window_screen_rect(GLFWwindow* window, int x, int y, int w, int h);
 void update_title_bar_hit_regions(GLFWwindow* window, const ImVec2& title_min,
     const ImVec2& title_max, const ImVec2& menu_min, const ImVec2& menu_max,
     const ImVec2& controls_min, const ImVec2& controls_max);

@@ -745,6 +745,63 @@ namespace {
         dock_prepass_apply(b, availB);
     }
 
+    // Ratios staged by import, waiting for their split nodes to
+    // materialize; indexed by depth-first split order.
+    std::vector<float> g_dock_pending;
+
+    // Structural split test — children exist, visibility ignored. At
+    // startup the ledger must be seeded before any window has been
+    // submitted, when nothing is visible yet.
+    bool dock_is_split_structural(ImGuiDockNode* n)
+    {
+        return n != nullptr && n->ChildNodes[0] != nullptr
+            && n->ChildNodes[1] != nullptr;
+    }
+
+    // First meeting with a split the session holds no opinion on:
+    // install the imported ratio for its depth-first position, falling
+    // back to the ratio the ini restored into SizeRef. Without this an
+    // unseeded ledger learns whatever imgui's restore produced —
+    // mangled sizes or the 0.5 fallback: the "sidebars snap back to
+    // half on every launch" bug. Nothing here overwrites what a drag
+    // has already taught this session.
+    void dock_seed_ledger(ImGuiDockNode* n, std::size_t& k)
+    {
+        if (n == nullptr)
+            return;
+        if (dock_is_split_structural(n)) {
+            if (!g_dock_ratio.contains(n->ID)) {
+                const float pending
+                    = k < g_dock_pending.size() ? g_dock_pending[k] : 0.0f;
+                if (pending > 0.02f && pending < 0.98f) {
+                    g_dock_ratio.emplace(n->ID, pending);
+                } else {
+                    const int axis = int(n->SplitAxis);
+                    const float sa = (&n->ChildNodes[0]->SizeRef.x)[axis];
+                    const float sb = (&n->ChildNodes[1]->SizeRef.x)[axis];
+                    if (sa + sb > 1.0f)
+                        g_dock_ratio.emplace(n->ID, sa / (sa + sb));
+                }
+            }
+            ++k;
+        }
+        dock_seed_ledger(n->ChildNodes[0], k);
+        dock_seed_ledger(n->ChildNodes[1], k);
+    }
+
+    void dock_collect_ratios(ImGuiDockNode* n, std::vector<float>& out)
+    {
+        if (n == nullptr)
+            return;
+        if (dock_is_split_structural(n)) {
+            const auto it = g_dock_ratio.find(n->ID);
+            out.push_back(
+                it != g_dock_ratio.end() ? it->second : dock_cur_ratio(n));
+        }
+        dock_collect_ratios(n->ChildNodes[0], out);
+        dock_collect_ratios(n->ChildNodes[1], out);
+    }
+
     void dock_walk_keep(ImGuiDockNode* n, ImGuiDockNode* learning)
     {
         if (n == nullptr)
@@ -764,12 +821,27 @@ namespace {
 
 }
 
+std::vector<float> dock_ratio_ledger_export(unsigned int dockspace_id)
+{
+    std::vector<float> out;
+    dock_collect_ratios(
+        ImGui::DockBuilderGetNode(static_cast<ImGuiID>(dockspace_id)), out);
+    return out;
+}
+
+void dock_ratio_ledger_import(const std::vector<float>& ratios)
+{
+    g_dock_pending = ratios;
+}
+
 void dock_ratio_guard_prepass(unsigned int dockspace_id, const ImVec2& size)
 {
     ImGuiDockNode* root
         = ImGui::DockBuilderGetNode(static_cast<ImGuiID>(dockspace_id));
     if (root == nullptr)
         return;
+    std::size_t k = 0;
+    dock_seed_ledger(root, k);
     if (root->Size.x == size.x && root->Size.y == size.y)
         return; // host size stable: the post-pass ledger is in charge
     dock_prepass_apply(root, size);

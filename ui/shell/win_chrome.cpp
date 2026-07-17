@@ -270,9 +270,23 @@ void update_title_bar_button_hit_region(GLFWwindow* window,
         break;
     }
 }
+
+void set_window_screen_rect(GLFWwindow* window, int x, int y, int w, int h)
+{
+    HWND hwnd = glfwGetWin32Window(window);
+    if (hwnd == nullptr)
+        return;
+    SetWindowPos(hwnd, nullptr, x, y, w, h, SWP_NOZORDER | SWP_NOACTIVATE);
+}
 #else
 void install_custom_window_chrome(GLFWwindow*)
 {
+}
+
+void set_window_screen_rect(GLFWwindow* window, int x, int y, int w, int h)
+{
+    glfwSetWindowPos(window, x, y);
+    glfwSetWindowSize(window, w, h);
 }
 
 void update_title_bar_hit_regions(GLFWwindow*, const ImVec2&, const ImVec2&,

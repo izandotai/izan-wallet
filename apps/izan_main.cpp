@@ -27,6 +27,7 @@
 #include "ui/shell/fonts.hpp"
 #include "ui/shell/ime.hpp"
 #include "ui/shell/theme.hpp"
+#include "ui/shell/ui_state.hpp"
 
 namespace {
 
@@ -38,11 +39,29 @@ struct Settings {
     std::string language = "en";
     int theme_index = 0;
     float window_opacity = 0.96f;
-    // imgui's window/dock layout, captured with SaveIniSettingsToMemory.
-    // Owning it here keeps every preference in one file and no stray
-    // *.imgui.ini anywhere.
+    // Flattened ui::UiState. The shell owns what these mean (see
+    // ui/shell/ui_state.hpp); this file only owns where they live.
+    int window_w = 0;
+    int window_h = 0;
+    bool window_maximized = false;
     std::string layout;
+    std::vector<float> dock_ratios;
 };
+
+ui::UiState ui_state_of(const Settings& s)
+{
+    return { s.window_w, s.window_h, s.window_maximized, s.layout,
+        s.dock_ratios };
+}
+
+void merge_ui_state(const ui::UiState& u, Settings& s)
+{
+    s.window_w = u.window_w;
+    s.window_h = u.window_h;
+    s.window_maximized = u.window_maximized;
+    s.layout = u.layout;
+    s.dock_ratios = u.dock_ratios;
+}
 
 // Every piece of mutable state — vault, audit ledger, settings — lives
 // in %APPDATA%\izan. The exe's own directory is the wrong home for it:
@@ -152,24 +171,8 @@ int main(int argc, char** argv)
     if (!app.init(options))
         return 1;
 
-    // The layout travels inside the settings file; the shell keeps
-    // imgui's own ini writer off. Adopt (and retire) a leftover ini
-    // from the older scheme once.
-    if (settings.layout.empty()) {
-        const auto oldIni = ui::executable_dir() / "izan.imgui.ini";
-        std::ifstream f(oldIni, std::ios::binary);
-        if (f) {
-            std::ostringstream buf;
-            buf << f.rdbuf();
-            settings.layout = buf.str();
-            f.close();
-            std::error_code ec;
-            std::filesystem::remove(oldIni, ec);
-        }
-    }
-    if (!settings.layout.empty())
-        ImGui::LoadIniSettingsFromMemory(
-            settings.layout.data(), settings.layout.size());
+    ui::UiStateKeeper ui_keeper;
+    ui_keeper.restore(app.window(), ui_state_of(settings));
 
     ui::ChromeState chrome;
     chrome.theme_index = settings.theme_index;
@@ -286,21 +289,17 @@ int main(int argc, char** argv)
             settings.window_opacity = chrome.window_opacity;
             save_settings(settings);
         }
-        // imgui raises this (throttled by its settings timer) whenever
-        // the layout changed; with no ini file of its own, persisting
-        // is our move.
-        if (ImGui::GetIO().WantSaveIniSettings) {
-            ImGui::GetIO().WantSaveIniSettings = false;
-            settings.layout = ImGui::SaveIniSettingsToMemory();
+        ui_keeper.update(app.window(), dockspace, [&](const ui::UiState& u) {
+            merge_ui_state(u, settings);
             save_settings(settings);
-        }
+        });
         if (chrome.request_exit)
             glfwSetWindowShouldClose(app.window(), GLFW_TRUE);
 
         app.end_frame(ui::theme_clear_color(chrome));
     });
     app.run();
-    settings.layout = ImGui::SaveIniSettingsToMemory();
+    merge_ui_state(ui_keeper.final_state(), settings);
     save_settings(settings);
     return 0;
 }

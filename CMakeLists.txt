@@ -262,6 +262,7 @@ if(IZAN_BUILD_UI AND WIN32)
         ui/shell/fonts.cpp
         ui/shell/ime.cpp
         ui/shell/theme.cpp
+        ui/shell/ui_state.cpp
         ui/shell/win_chrome.cpp
         ui/shell/win_console.cpp
         ui/shell/win_cursors.cpp
