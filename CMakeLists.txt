@@ -223,6 +223,7 @@ add_library(izan_domain STATIC
     domain/chains/chain_spec.cpp
     domain/chains/jsonrpc.cpp
     domain/chains/rpc_client.cpp
+    domain/config/config_trust.cpp
     domain/assets/balances.cpp
     domain/assets/portfolio.cpp
     domain/assets/token_registry.cpp
@@ -251,6 +252,7 @@ add_executable(izan_tests
     tests/abi_test.cpp
     tests/assets_test.cpp
     tests/portfolio_test.cpp
+    tests/config_trust_test.cpp
     tests/keyd_test.cpp
     tests/linkbits_test.cpp
     tests/proposals_test.cpp
