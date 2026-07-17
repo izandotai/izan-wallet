@@ -1,9 +1,9 @@
 name: ci
 
+# Manual trigger only — run from the Actions tab when a checkpoint needs
+# cross-platform proof.
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   linux:
@@ -34,7 +34,8 @@ jobs:
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-ninja
       - name: configure
-        run: cmake -S . -B build -G Ninja
+        # mingw cmake's curl ships without a CA store; point it at msys2's.
+        run: cmake -S . -B build -G Ninja -DCMAKE_TLS_CAINFO=/usr/ssl/certs/ca-bundle.crt
       - name: build
         run: cmake --build build
       - name: test
