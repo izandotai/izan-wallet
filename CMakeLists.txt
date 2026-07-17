@@ -38,6 +38,40 @@ add_library(izan_trezor STATIC
     ${TREZOR}/memzero.c
     ${TREZOR}/pbkdf2.c
     ${TREZOR}/sha2.c
+    # BIP-32 and its hard dependencies (bip32.c pulls in ed25519/aes
+    # unconditionally; ed25519 doubles for Solana later)
+    ${TREZOR}/address.c
+    ${TREZOR}/base58.c
+    ${TREZOR}/bignum.c
+    ${TREZOR}/bip32.c
+    ${TREZOR}/blake256.c
+    ${TREZOR}/blake2b.c
+    ${TREZOR}/blake2s.c
+    ${TREZOR}/curves.c
+    ${TREZOR}/ecdsa.c
+    ${TREZOR}/groestl.c
+    ${TREZOR}/hasher.c
+    ${TREZOR}/hmac_drbg.c
+    ${TREZOR}/nist256p1.c
+    ${TREZOR}/rfc6979.c
+    ${TREZOR}/ripemd160.c
+    ${TREZOR}/secp256k1.c
+    ${TREZOR}/sha3.c
+    ${TREZOR}/segwit_addr.c
+    ${TREZOR}/ed25519-donna/curve25519-donna-32bit.c
+    ${TREZOR}/ed25519-donna/curve25519-donna-helpers.c
+    ${TREZOR}/ed25519-donna/curve25519-donna-scalarmult-base.c
+    ${TREZOR}/ed25519-donna/ed25519.c
+    ${TREZOR}/ed25519-donna/ed25519-donna-32bit-tables.c
+    ${TREZOR}/ed25519-donna/ed25519-donna-basepoint-table.c
+    ${TREZOR}/ed25519-donna/ed25519-donna-impl-base.c
+    ${TREZOR}/ed25519-donna/ed25519-keccak.c
+    ${TREZOR}/ed25519-donna/ed25519-sha3.c
+    ${TREZOR}/ed25519-donna/modm-donna-32bit.c
+    ${TREZOR}/aes/aes_modes.c
+    ${TREZOR}/aes/aescrypt.c
+    ${TREZOR}/aes/aeskey.c
+    ${TREZOR}/aes/aestab.c
     platform/rand.c
 )
 target_include_directories(izan_trezor PUBLIC ${TREZOR})
@@ -52,6 +86,7 @@ endif()
 
 add_library(izan_crypto STATIC
     core/crypto/bip39.cpp
+    core/crypto/hd.cpp
 )
 target_include_directories(izan_crypto PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(izan_crypto PUBLIC izan_trezor)
@@ -59,6 +94,7 @@ target_link_libraries(izan_crypto PUBLIC izan_trezor)
 enable_testing()
 add_executable(izan_tests
     tests/bip39_test.cpp
+    tests/hd_test.cpp
 )
 target_link_libraries(izan_tests PRIVATE izan_crypto doctest::doctest)
 target_include_directories(izan_tests PRIVATE tests)
