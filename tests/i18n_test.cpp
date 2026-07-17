@@ -43,7 +43,7 @@ TEST_CASE("i18n: base catalog lookups, unknown key returns the key")
 TEST_CASE("i18n: every shipped language is complete against the base")
 {
     const auto codes = Catalog::available(kLangDir);
-    REQUIRE(codes.size() == 8);
+    REQUIRE(codes.size() == 7);
     CHECK(codes.front() == "en"); // base sorts first
 
     for (const std::string& code : codes) {

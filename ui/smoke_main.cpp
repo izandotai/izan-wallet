@@ -45,21 +45,26 @@ int main()
         izan::ui::draw_main_window_frame(chrome);
         izan::ui::draw_custom_title_bar(
             app.window(), chrome, "izan", "shell harness");
+        // Deferred: applying a theme inside the menu callback gets its
+        // WindowBg/PopupBg clobbered by the menu bar's PopStyleColor.
+        int pending_theme = -1;
         izan::ui::draw_custom_menu_bar(chrome, [&] {
             if (ImGui::BeginMenu("View")) {
                 for (int i = 0; i < int(izan::ui::kThemeNames.size()); ++i) {
                     const bool selected = chrome.theme_index == i;
                     if (ImGui::MenuItem(
-                            izan::ui::kThemeNames[i], nullptr, selected)) {
-                        chrome.theme_index = i;
-                        izan::ui::apply_theme_style_only(i);
-                    }
+                            izan::ui::kThemeNames[i], nullptr, selected))
+                        pending_theme = i;
                 }
                 ImGui::Separator();
                 ImGui::MenuItem("ImGui demo", nullptr, &show_demo);
                 ImGui::EndMenu();
             }
         });
+        if (pending_theme >= 0) {
+            chrome.theme_index = pending_theme;
+            izan::ui::apply_theme_style_only(pending_theme);
+        }
 
         const ImGuiViewport* viewport = ImGui::GetMainViewport();
         const float top = izan::ui::kWindowFrameMargin

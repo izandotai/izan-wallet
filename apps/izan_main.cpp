@@ -135,17 +135,18 @@ int main(int argc, char** argv)
         ui::draw_custom_title_bar(app.window(), chrome, tr("app.title"),
             vault.unlocked() ? tr("vault.state.unlocked")
                              : tr("vault.state.locked"));
+        // Theme application is deferred to after the menu bar returns:
+        // draw_custom_menu_bar wraps the items in Push/PopStyleColor
+        // pairs, and popping would write the old theme's colors right
+        // back over a style applied mid-callback.
+        int pending_theme = -1;
         ui::draw_custom_menu_bar(chrome, [&] {
             if (ImGui::BeginMenu(tr("menu.view"))) {
                 if (ImGui::BeginMenu(tr("menu.theme"))) {
                     for (int i = 0; i < int(ui::kThemeNames.size()); ++i) {
                         if (ImGui::MenuItem(ui::kThemeNames[i], nullptr,
-                                chrome.theme_index == i)) {
-                            chrome.theme_index = i;
-                            ui::apply_theme_style_only(i);
-                            settings.theme_index = i;
-                            save_settings(settings);
-                        }
+                                chrome.theme_index == i))
+                            pending_theme = i;
                     }
                     ImGui::EndMenu();
                 }
@@ -166,6 +167,12 @@ int main(int argc, char** argv)
                 ImGui::EndMenu();
             }
         });
+        if (pending_theme >= 0) {
+            chrome.theme_index = pending_theme;
+            ui::apply_theme_style_only(pending_theme);
+            settings.theme_index = pending_theme;
+            save_settings(settings);
+        }
 
         const ImGuiViewport* viewport = ImGui::GetMainViewport();
         const float top

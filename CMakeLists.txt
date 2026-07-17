@@ -274,12 +274,15 @@ if(IZAN_BUILD_UI AND WIN32)
             COMMENT "Copying ui assets for ${target}")
     endfunction()
 
-    add_executable(izan_ui_smoke ui/smoke_main.cpp)
+    # WIN32 = windows subsystem: no console flashes up on double-click;
+    # launched from a terminal, try_attach_parent_console re-plumbs
+    # stdout/stderr back to it.
+    add_executable(izan_ui_smoke WIN32 ui/smoke_main.cpp)
     target_link_libraries(izan_ui_smoke PRIVATE izan_ui_shell)
     izan_ui_copy_assets(izan_ui_smoke)
 
     # The wallet. One binary, two personalities (UI / --keyd-child).
-    add_executable(izan
+    add_executable(izan WIN32
         apps/izan_main.cpp
         ui/pages/vault_page.cpp
     )
