@@ -235,4 +235,39 @@ Wallet open(const std::string& path, const SecureBytes& passphrase)
     return unpack_payload(payload);
 }
 
+void shred(const std::string& path)
+{
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    const auto size = fs::file_size(path, ec);
+    if (ec)
+        return; // nothing there
+    {
+        std::fstream f(path, std::ios::in | std::ios::out | std::ios::binary);
+        if (!f)
+            throw std::runtime_error("shred: cannot open " + path);
+        uint8_t noise[4096];
+        for (std::uintmax_t left = size; left > 0;) {
+            const std::size_t n
+                = left < sizeof noise ? std::size_t(left) : sizeof noise;
+            randombytes_buf(noise, n);
+            f.write(reinterpret_cast<const char*>(noise), std::streamsize(n));
+            left -= n;
+        }
+        f.flush();
+        if (!f)
+            throw std::runtime_error("shred: overwrite failed " + path);
+    }
+    if (!fs::remove(path))
+        throw std::runtime_error("shred: cannot delete " + path);
+}
+
+void change_password(const std::string& path, const SecureBytes& old_pass,
+    const SecureBytes& new_pass, const KdfParams& kdf)
+{
+    const Wallet wallet = open(path, old_pass);
+    save(path, new_pass, wallet, kdf);
+    shred(path + ".bak");
+}
+
 }

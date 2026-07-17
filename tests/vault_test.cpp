@@ -139,3 +139,47 @@ TEST_CASE("vault refuses an empty passphrase and bad shapes")
     badKey.imported.push_back(std::move(im));
     CHECK_THROWS(izan::vault::save(path, pass, badKey, izan::vault::kdf_min()));
 }
+
+TEST_CASE("shred overwrites then deletes; missing file is a no-op")
+{
+    const std::string path = temp_vault_path() + ".shred";
+    {
+        std::ofstream f(path, std::ios::binary);
+        f << "sensitive bytes";
+    }
+    izan::vault::shred(path);
+    CHECK(!std::filesystem::exists(path));
+
+    izan::vault::shred(path); // second call: nothing there, nothing thrown
+}
+
+TEST_CASE("change_password swaps the passphrase and leaves no .bak behind")
+{
+    const std::string path = temp_vault_path();
+    std::filesystem::remove(path);
+    std::filesystem::remove(path + ".bak");
+
+    izan::vault::Wallet wallet;
+    wallet.entropy = SecureBytes(16);
+    randombytes_buf(wallet.entropy.data(), wallet.entropy.size());
+    izan::vault::save(
+        path, sb_from("old pass"), wallet, izan::vault::kdf_min());
+
+    // Wrong current passphrase must change nothing at all.
+    CHECK_THROWS(izan::vault::change_password(
+        path, sb_from("not it"), sb_from("new pass"), izan::vault::kdf_min()));
+    CHECK_NOTHROW(izan::vault::open(path, sb_from("old pass")));
+
+    izan::vault::change_password(
+        path, sb_from("old pass"), sb_from("new pass"), izan::vault::kdf_min());
+
+    // The rotation copy still opened with the old passphrase — it must
+    // be gone, or the change was theater.
+    CHECK(!std::filesystem::exists(path + ".bak"));
+    CHECK_THROWS(izan::vault::open(path, sb_from("old pass")));
+    izan::vault::Wallet reopened = izan::vault::open(path, sb_from("new pass"));
+    CHECK(reopened.entropy.size() == 16);
+    CHECK(std::memcmp(reopened.entropy.data(), wallet.entropy.data(), 16) == 0);
+
+    std::filesystem::remove(path);
+}

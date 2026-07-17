@@ -56,4 +56,16 @@ void save(const std::string& path, const SecureBytes& passphrase,
 // throws.
 Wallet open(const std::string& path, const SecureBytes& passphrase);
 
+// Overwrite a file with random bytes, flush, then delete it. Missing
+// file is a no-op. Best effort by nature: flash wear leveling may keep
+// stale copies out of reach, so this raises the bar rather than
+// guaranteeing erasure.
+void shred(const std::string& path);
+
+// Re-encrypt under a new passphrase, then shred the .bak rotation —
+// otherwise a copy the old passphrase still opens survives on disk and
+// the change is theater (§3.1 hardening item 7).
+void change_password(const std::string& path, const SecureBytes& old_pass,
+    const SecureBytes& new_pass, const KdfParams& kdf);
+
 }
