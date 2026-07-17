@@ -29,7 +29,9 @@ Early development — nothing here is ready for real funds.
 - [x] Chain registry (config-driven EVM list) and JSON-RPC codec
 - [x] HTTPS transport (Boost.Beast, static OpenSSL, OS root-store trust,
       live-tested against mainnet RPC)
-- [ ] Balances, token lists, watch-only mode
+- [x] Balance reads: native + ERC-20 (minimal ABI codec, endpoint
+      failover, live-tested on Ethereum and Robinhood Chain)
+- [ ] Token lists, watch-only portfolio view
 - [ ] Transaction engine (EIP-1559 first)
 - [ ] UI shell
 

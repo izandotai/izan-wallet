@@ -11,6 +11,16 @@
         "explorer": "https://etherscan.io"
     },
     {
+        "chain_id": 4663,
+        "name": "Robinhood Chain",
+        "symbol": "ETH",
+        "decimals": 18,
+        "rpc": [
+            "https://rpc.mainnet.chain.robinhood.com"
+        ],
+        "explorer": "https://robinhoodchain.blockscout.com"
+    },
+    {
         "chain_id": 8453,
         "name": "Base",
         "symbol": "ETH",

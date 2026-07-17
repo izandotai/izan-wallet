@@ -151,6 +151,13 @@ add_library(izan_crypto STATIC
 target_include_directories(izan_crypto PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(izan_crypto PUBLIC izan_trezor)
 
+# ABI words and selectors for contract reads (keccak from trezor).
+add_library(izan_codec STATIC
+    core/codec/abi.cpp
+)
+target_include_directories(izan_codec PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(izan_codec PUBLIC izan_units PRIVATE izan_trezor)
+
 # L1 platform: HTTPS transport. TLS trust anchors come from the OS
 # root store — the static OpenSSL has no default certificate paths.
 add_library(izan_platform STATIC
@@ -169,9 +176,12 @@ endif()
 add_library(izan_domain STATIC
     domain/chains/chain_spec.cpp
     domain/chains/jsonrpc.cpp
+    domain/chains/rpc_client.cpp
+    domain/assets/balances.cpp
 )
 target_include_directories(izan_domain PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(izan_domain PUBLIC izan_units PRIVATE glaze::glaze)
+target_link_libraries(izan_domain PUBLIC izan_units
+    PRIVATE glaze::glaze izan_codec izan_crypto izan_platform)
 
 enable_testing()
 add_executable(izan_tests
@@ -185,9 +195,11 @@ add_executable(izan_tests
     tests/units_test.cpp
     tests/chains_test.cpp
     tests/net_test.cpp
+    tests/abi_test.cpp
+    tests/assets_test.cpp
 )
 target_link_libraries(izan_tests PRIVATE izan_crypto izan_secure izan_units
-    izan_domain izan_platform doctest::doctest)
+    izan_codec izan_domain izan_platform doctest::doctest)
 target_compile_definitions(izan_tests
     PRIVATE IZAN_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(izan_tests PRIVATE tests)
