@@ -6,11 +6,32 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Fully static binaries: the only DLLs an izan executable may import are
 # Windows system libraries. Audited in CI on every release.
+# Optimization is load-bearing on mingw: at -O0 any TU that compares
+# std::type_info (std::function internals do) emits an out-of-line copy
+# of the C++23 inline operator==, which collides with libstdc++'s
+# tinfo.o at static link (GCC 14.2 toolchain bug). At -O2 the call
+# inlines away and the collision never forms.
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE RelWithDebInfo)
+endif()
+
 if(MINGW)
     add_link_options(-static)
 endif()
 
 include(FetchContent)
+include(cmake/openssl.cmake)
+
+# Boost beast/asio for HTTPS and websockets, from the official CMake
+# release tarball.
+set(BOOST_INCLUDE_LIBRARIES beast asio)
+set(BOOST_ENABLE_CMAKE ON)
+set(BOOST_SKIP_INSTALL_RULES ON)
+FetchContent_Declare(Boost
+    URL https://github.com/boostorg/boost/releases/download/boost-1.87.0/boost-1.87.0-cmake.tar.xz
+    DOWNLOAD_EXTRACT_TIMESTAMP ON
+    EXCLUDE_FROM_ALL
+)
 
 # trezor-crypto lives inside the trezor-firmware monorepo; pin a release
 # tarball and build only the modules we use.
@@ -40,7 +61,7 @@ FetchContent_Declare(glaze
     DOWNLOAD_EXTRACT_TIMESTAMP ON
     EXCLUDE_FROM_ALL
 )
-FetchContent_MakeAvailable(trezor_firmware doctest sodium glaze)
+FetchContent_MakeAvailable(trezor_firmware doctest sodium glaze Boost)
 
 set(TREZOR ${trezor_firmware_SOURCE_DIR}/crypto)
 
@@ -130,6 +151,19 @@ add_library(izan_crypto STATIC
 target_include_directories(izan_crypto PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(izan_crypto PUBLIC izan_trezor)
 
+# L1 platform: HTTPS transport. TLS trust anchors come from the OS
+# root store — the static OpenSSL has no default certificate paths.
+add_library(izan_platform STATIC
+    platform/net/http_client.cpp
+    platform/net/tls.cpp
+)
+target_include_directories(izan_platform PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(izan_platform
+    PUBLIC Boost::beast Boost::asio izan_openssl)
+if(WIN32)
+    target_link_libraries(izan_platform PUBLIC ws2_32 mswsock)
+endif()
+
 # L3 domain: chain registry and RPC plumbing. Links primitives only —
 # never the trust plane.
 add_library(izan_domain STATIC
@@ -150,9 +184,10 @@ add_executable(izan_tests
     tests/vault_test.cpp
     tests/units_test.cpp
     tests/chains_test.cpp
+    tests/net_test.cpp
 )
 target_link_libraries(izan_tests PRIVATE izan_crypto izan_secure izan_units
-    izan_domain doctest::doctest)
+    izan_domain izan_platform doctest::doctest)
 target_compile_definitions(izan_tests
     PRIVATE IZAN_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(izan_tests PRIVATE tests)
