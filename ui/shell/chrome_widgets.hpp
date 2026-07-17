@@ -41,4 +41,14 @@ void draw_status_bar(const ChromeState& app, const char* status_text);
 // rewrites the clicked splitter to 0.5 on double-click.
 void dock_splitter_dblclick_reset(unsigned int dockspace_id);
 
+// Call right BEFORE DockSpace() with the size the dockspace is about
+// to get. The post-pass above corrects ratios one frame late — during
+// a caption-drag restore the modal move loop renders exactly one frame
+// at the new size and then nothing until release, so that one frame
+// must already be right. When the host size is about to change, this
+// rewrites the tree's SizeRef to the ledger ratios at the new size so
+// the same frame lays out correctly. Splitter drags never change the
+// host size, so this stays silent and cannot fight them.
+void dock_ratio_guard_prepass(unsigned int dockspace_id, const ImVec2& size);
+
 }

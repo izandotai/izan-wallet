@@ -84,6 +84,8 @@ int main()
                 | ImGuiWindowFlags_NoBringToFrontOnFocus
                 | ImGuiWindowFlags_NoSavedSettings);
         const ImGuiID dockspace = ImGui::GetID("izan-dockspace");
+        izan::ui::dock_ratio_guard_prepass(
+            dockspace, ImGui::GetContentRegionAvail());
         ImGui::DockSpace(
             dockspace, ImVec2(0, 0), ImGuiDockNodeFlags_PassthruCentralNode);
         izan::ui::dock_splitter_dblclick_reset(dockspace);

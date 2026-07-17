@@ -715,6 +715,36 @@ namespace {
             g_dock_ratio[n->ID] = r;
     }
 
+    // Rewrites SizeRef through the tree for a given node size, using
+    // the ledger where it has an entry and the current ratio where it
+    // does not.
+    void dock_prepass_apply(ImGuiDockNode* n, ImVec2 avail)
+    {
+        if (n == nullptr)
+            return;
+        if (!dock_is_split(n)) {
+            dock_prepass_apply(n->ChildNodes[0], avail);
+            dock_prepass_apply(n->ChildNodes[1], avail);
+            return;
+        }
+        ImGuiDockNode* a = n->ChildNodes[0];
+        ImGuiDockNode* b = n->ChildNodes[1];
+        const int axis = int(n->SplitAxis);
+        const auto it = g_dock_ratio.find(n->ID);
+        const float r
+            = it != g_dock_ratio.end() ? it->second : dock_cur_ratio(n);
+        const float spacing = ImGui::GetStyle().DockingSeparatorSize;
+        const float total = ImMax((&avail.x)[axis] - spacing, 0.0f);
+        const float sa = ImTrunc(total * r);
+        (&a->SizeRef.x)[axis] = sa;
+        (&b->SizeRef.x)[axis] = total - sa;
+        ImVec2 availA = avail, availB = avail;
+        (&availA.x)[axis] = sa;
+        (&availB.x)[axis] = total - sa;
+        dock_prepass_apply(a, availA);
+        dock_prepass_apply(b, availB);
+    }
+
     void dock_walk_keep(ImGuiDockNode* n, ImGuiDockNode* learning)
     {
         if (n == nullptr)
@@ -732,6 +762,17 @@ namespace {
         dock_walk_keep(n->ChildNodes[1], learning);
     }
 
+}
+
+void dock_ratio_guard_prepass(unsigned int dockspace_id, const ImVec2& size)
+{
+    ImGuiDockNode* root
+        = ImGui::DockBuilderGetNode(static_cast<ImGuiID>(dockspace_id));
+    if (root == nullptr)
+        return;
+    if (root->Size.x == size.x && root->Size.y == size.y)
+        return; // host size stable: the post-pass ledger is in charge
+    dock_prepass_apply(root, size);
 }
 
 void dock_splitter_dblclick_reset(unsigned int dockspace_id)
