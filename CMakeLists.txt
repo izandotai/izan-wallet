@@ -17,6 +17,8 @@ endif()
 
 if(MINGW)
     add_link_options(-static)
+    # Windows 10 API surface (process mitigation policies live there).
+    add_compile_definitions(_WIN32_WINNT=0x0A00)
 endif()
 
 # Distribution builds (-DCMAKE_BUILD_TYPE=Release): strip symbols, drop
@@ -172,6 +174,29 @@ add_library(izan_codec STATIC
 target_include_directories(izan_codec PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(izan_codec PUBLIC izan_units PRIVATE izan_trezor)
 
+# L1 platform: process separation primitives — anonymous pipes, the
+# secretstream password channel, whitelist-inherited child spawn.
+# Windows-first; the Debian port arrives with its production target.
+if(WIN32)
+    add_library(izan_ipc STATIC
+        platform/ipc/pipe.cpp
+        platform/ipc/secret_channel.cpp
+        platform/proc/child_process.cpp
+    )
+    target_include_directories(izan_ipc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(izan_ipc PUBLIC izan_secure)
+
+    # Trust plane: vault custody behind the password channel. Links
+    # primitives only — no chains, no net, no UI, by construction.
+    add_library(izan_keyd STATIC
+        keyd/child.cpp
+        keyd/client.cpp
+        keyd/hardening.cpp
+    )
+    target_include_directories(izan_keyd PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(izan_keyd PUBLIC izan_ipc izan_secure)
+endif()
+
 # L1 platform: HTTPS transport. TLS trust anchors come from the OS
 # root store — the static OpenSSL has no default certificate paths.
 add_library(izan_platform STATIC
@@ -205,6 +230,7 @@ target_link_libraries(izan_watch PRIVATE izan_domain izan_units)
 
 enable_testing()
 add_executable(izan_tests
+    tests/main.cpp
     tests/bip39_test.cpp
     tests/btc_test.cpp
     tests/eth_test.cpp
@@ -218,9 +244,13 @@ add_executable(izan_tests
     tests/abi_test.cpp
     tests/assets_test.cpp
     tests/portfolio_test.cpp
+    tests/keyd_test.cpp
 )
 target_link_libraries(izan_tests PRIVATE izan_crypto izan_secure izan_units
     izan_codec izan_domain izan_platform doctest::doctest)
+if(WIN32)
+    target_link_libraries(izan_tests PRIVATE izan_keyd)
+endif()
 target_compile_definitions(izan_tests
     PRIVATE IZAN_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(izan_tests PRIVATE tests)

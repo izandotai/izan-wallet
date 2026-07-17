@@ -1,0 +1,62 @@
+#pragma once
+
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <string>
+
+#include "core/secure/secure_bytes.hpp"
+#include "platform/ipc/secret_channel.hpp"
+#include "platform/proc/child_process.hpp"
+
+namespace izan::keyd {
+
+struct HelloInfo {
+    uint8_t version = 0;
+    uint8_t hardened = 0; // kHardened* bitmask
+};
+
+// UI-side handle to a spawned keyd. Owns the process and the password
+// channel; destroying the client closes the channel, which the child
+// treats as parent death and exits after wiping.
+class KeydClient {
+public:
+    // Spawns `exe --keyd-child` with fresh pipes and a fresh one-shot
+    // session key, and consumes the child's Hello.
+    static KeydClient spawn(
+        const std::string& exe, const std::string& vault_path);
+
+    const HelloInfo& hello() const
+    {
+        return m_hello;
+    }
+
+    // true on Ok; false carries the child's refusal in last_error().
+    bool unlock(const secure::SecureBytes& passphrase);
+    bool lock();
+    // nullopt = channel broken.
+    std::optional<bool> unlocked();
+    bool shutdown();
+
+    const std::string& last_error() const
+    {
+        return m_last_error;
+    }
+
+    // Exit code if the child ends within the timeout.
+    std::optional<uint32_t> wait_exit(uint32_t timeout_ms);
+    void drop_channel(); // simulate parent death while keeping the process
+
+private:
+    KeydClient() = default;
+
+    std::optional<secure::SecureBytes> request(
+        const uint8_t* frame, std::size_t size);
+
+    proc::ChildProcess m_child;
+    std::unique_ptr<ipc::SecretChannel> m_channel;
+    HelloInfo m_hello;
+    std::string m_last_error;
+};
+
+}

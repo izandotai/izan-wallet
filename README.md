@@ -25,7 +25,11 @@ Early development — nothing here is ready for real funds.
 - [x] Solana keys, SLIP-0010 ed25519 (both spec vectors, hardened-only)
 - [x] Encrypted vault (argon2id, locked memory, wipe-on-drop)
 - [x] Exact integer amounts (U256, decimal ↔ base-unit conversion)
-- [ ] Signer process (keyd) with proposal/approval protocol
+- [x] keyd process split: vault custody in a spawned, hardened child
+      (anonymous-pipe password channel under a one-shot session key,
+      crash dumps off, dynamic code and non-Microsoft DLLs blocked,
+      wipe-and-exit on parent death)
+- [ ] Proposal/approval protocol, policy engine, signing
 - [x] Chain registry (config-driven EVM list) and JSON-RPC codec
 - [x] HTTPS transport (Boost.Beast, static OpenSSL, OS root-store trust,
       live-tested against mainnet RPC)
