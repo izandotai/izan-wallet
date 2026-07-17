@@ -11,8 +11,9 @@ namespace izan::keyd {
 // v1 policy skeleton: the auto-approve zone ships welded shut. Every
 // proposal pends for a human. The switch exists so the field is
 // designed, not bolted on — but flipping it requires paired-client
-// credentials (v4 session budgets), never a config default. See
-// WALLET-DESIGN.md §3.1 gap two.
+// credentials (session budgets, a later release), never a config
+// default: an open submission pipe combined with a default allow-list
+// would let any same-user process drain funds silently.
 struct Policy {
     static constexpr bool kAutoApproveEnabled = false;
 };
