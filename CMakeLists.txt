@@ -101,10 +101,13 @@ if(WIN32)
     target_link_libraries(izan_trezor PUBLIC bcrypt)
 endif()
 
-# Guarded containers for key material (header-only over libsodium).
-add_library(izan_secure INTERFACE)
-target_include_directories(izan_secure INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(izan_secure INTERFACE sodium)
+# Key-material hygiene: guarded SecureBytes container and the encrypted
+# vault file, both over libsodium.
+add_library(izan_secure STATIC
+    core/secure/vault.cpp
+)
+target_include_directories(izan_secure PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(izan_secure PUBLIC sodium)
 
 add_library(izan_crypto STATIC
     core/crypto/bip39.cpp
@@ -124,6 +127,7 @@ add_executable(izan_tests
     tests/hd_test.cpp
     tests/sol_test.cpp
     tests/secure_bytes_test.cpp
+    tests/vault_test.cpp
 )
 target_link_libraries(izan_tests PRIVATE izan_crypto izan_secure
     doctest::doctest)

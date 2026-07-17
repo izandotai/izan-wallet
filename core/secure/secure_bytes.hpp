@@ -26,6 +26,7 @@ namespace izan::secure {
 class SecureBytes {
 public:
     SecureBytes() = default;
+
     explicit SecureBytes(std::size_t size)
         : m_size(size)
     {
@@ -37,16 +38,22 @@ public:
         if (!m_ptr)
             throw std::runtime_error("sodium_malloc failed (mlock limit?)");
     }
-    ~SecureBytes() { reset(); }
+
+    ~SecureBytes()
+    {
+        reset();
+    }
 
     SecureBytes(const SecureBytes&) = delete;
     SecureBytes& operator=(const SecureBytes&) = delete;
+
     SecureBytes(SecureBytes&& other) noexcept
         : m_ptr(std::exchange(other.m_ptr, nullptr))
         , m_size(std::exchange(other.m_size, 0))
         , m_guarded(std::exchange(other.m_guarded, false))
     {
     }
+
     SecureBytes& operator=(SecureBytes&& other) noexcept
     {
         if (this != &other) {
@@ -93,11 +100,13 @@ public:
                 m_bytes.m_guarded = false;
             }
         }
+
         ~Access()
         {
             if (m_wasGuarded)
                 m_bytes.protect();
         }
+
         Access(const Access&) = delete;
         Access& operator=(const Access&) = delete;
 
@@ -106,10 +115,25 @@ public:
         bool m_wasGuarded;
     };
 
-    uint8_t* data() { return m_ptr; }
-    const uint8_t* data() const { return m_ptr; }
-    std::size_t size() const { return m_size; }
-    bool empty() const { return !m_size; }
+    uint8_t* data()
+    {
+        return m_ptr;
+    }
+
+    const uint8_t* data() const
+    {
+        return m_ptr;
+    }
+
+    std::size_t size() const
+    {
+        return m_size;
+    }
+
+    bool empty() const
+    {
+        return !m_size;
+    }
 
     // Constant-time comparison; memcmp on secrets leaks timing.
     bool ct_equal(const SecureBytes& other) const
