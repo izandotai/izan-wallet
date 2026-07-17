@@ -242,8 +242,33 @@ target_link_libraries(izan_watch PRIVATE izan_domain izan_units)
 option(IZAN_BUILD_UI "Build the wallet UI" ON)
 if(IZAN_BUILD_UI AND WIN32)
     include(cmake/gui_deps.cmake)
+
+    add_library(izan_ui_shell STATIC
+        ui/shell/app.cpp
+        ui/shell/chrome_widgets.cpp
+        ui/shell/fonts.cpp
+        ui/shell/ime.cpp
+        ui/shell/theme.cpp
+        ui/shell/win_chrome.cpp
+        ui/shell/win_console.cpp
+        ui/shell/win_cursors.cpp
+    )
+    target_include_directories(izan_ui_shell PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(izan_ui_shell PUBLIC izan_imgui dwmapi imm32)
+
+    # Runtime assets (fonts; cursor files are optional and unshipped in
+    # the open repo) copied beside the target exe.
+    function(izan_ui_copy_assets target)
+        add_custom_command(TARGET ${target} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${CMAKE_CURRENT_SOURCE_DIR}/ui/assets
+                $<TARGET_FILE_DIR:${target}>/assets
+            COMMENT "Copying ui assets for ${target}")
+    endfunction()
+
     add_executable(izan_ui_smoke ui/smoke_main.cpp)
-    target_link_libraries(izan_ui_smoke PRIVATE izan_imgui)
+    target_link_libraries(izan_ui_smoke PRIVATE izan_ui_shell)
+    izan_ui_copy_assets(izan_ui_smoke)
 endif()
 
 enable_testing()
