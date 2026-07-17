@@ -8,7 +8,6 @@
 #include <GLFW/glfw3native.h>
 #endif
 
-#include <algorithm>
 #include <cmath>
 #include <cstdio>
 
@@ -20,14 +19,6 @@
 #endif
 
 namespace izan::ui {
-
-void toggle_window_maximized(GLFWwindow* window)
-{
-    if (glfwGetWindowAttrib(window, GLFW_MAXIMIZED) == GLFW_TRUE)
-        glfwRestoreWindow(window);
-    else
-        glfwMaximizeWindow(window);
-}
 
 #ifdef _WIN32
 namespace {
@@ -278,12 +269,29 @@ void set_window_screen_rect(GLFWwindow* window, int x, int y, int w, int h)
         return;
     SetWindowPos(hwnd, nullptr, x, y, w, h, SWP_NOZORDER | SWP_NOACTIVATE);
 }
+
+void set_window_visible_bounds(GLFWwindow* window, int x, int y, int w, int h)
+{
+    HWND hwnd = glfwGetWin32Window(window);
+    if (hwnd == nullptr)
+        return;
+    const RECT target = window_rect_for_visible_bounds(hwnd, x, y, w, h);
+    SetWindowPos(hwnd, nullptr, target.left, target.top,
+        target.right - target.left, target.bottom - target.top,
+        SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+}
 #else
 void install_custom_window_chrome(GLFWwindow*)
 {
 }
 
 void set_window_screen_rect(GLFWwindow* window, int x, int y, int w, int h)
+{
+    glfwSetWindowPos(window, x, y);
+    glfwSetWindowSize(window, w, h);
+}
+
+void set_window_visible_bounds(GLFWwindow* window, int x, int y, int w, int h)
 {
     glfwSetWindowPos(window, x, y);
     glfwSetWindowSize(window, w, h);
@@ -326,90 +334,6 @@ WorkArea current_window_work_area(GLFWwindow* window)
     if (glfw_monitor != nullptr)
         glfwGetMonitorWorkarea(glfw_monitor, &x, &y, &width, &height);
     return WorkArea { x, y, width, height };
-}
-
-void center_window_on_primary_work_area(GLFWwindow* window)
-{
-    GLFWmonitor* monitor = glfwGetPrimaryMonitor();
-    if (monitor == nullptr)
-        return;
-
-    int area_x = 0;
-    int area_y = 0;
-    int area_width = 0;
-    int area_height = 0;
-    glfwGetMonitorWorkarea(
-        monitor, &area_x, &area_y, &area_width, &area_height);
-    if (area_width <= 0 || area_height <= 0)
-        return;
-
-    int window_width = 0;
-    int window_height = 0;
-    glfwGetWindowSize(window, &window_width, &window_height);
-    if (window_width <= 0 || window_height <= 0)
-        return;
-
-    const int x = area_x + std::max(0, (area_width - window_width) / 2);
-    const int y = area_y + std::max(0, (area_height - window_height) / 2);
-    glfwSetWindowPos(window, x, y);
-}
-
-void center_window_on_work_area(GLFWwindow* window)
-{
-    const WorkArea area = current_window_work_area(window);
-    int w = 0, h = 0;
-    glfwGetWindowSize(window, &w, &h);
-    if (w <= 0 || h <= 0 || area.width <= 0 || area.height <= 0)
-        return;
-    const int x = area.x + std::max(0, (area.width - w) / 2);
-    const int y = area.y + std::max(0, (area.height - h) / 2);
-#ifdef _WIN32
-    HWND hwnd = glfwGetWin32Window(window);
-    if (hwnd != nullptr) {
-        const RECT target = window_rect_for_visible_bounds(hwnd, x, y, w, h);
-        SetWindowPos(hwnd, nullptr, target.left, target.top,
-            target.right - target.left, target.bottom - target.top,
-            SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
-        return;
-    }
-#endif
-    glfwSetWindowPos(window, x, y);
-}
-
-void snap_window_to_work_area(GLFWwindow* window, float x_fraction,
-    float y_fraction, float width_fraction, float height_fraction)
-{
-    const WorkArea area = current_window_work_area(window);
-    if (glfwGetWindowAttrib(window, GLFW_MAXIMIZED) == GLFW_TRUE)
-        glfwRestoreWindow(window);
-
-    const int x = area.x
-        + static_cast<int>(
-            std::lround(static_cast<float>(area.width) * x_fraction));
-    const int y = area.y
-        + static_cast<int>(
-            std::lround(static_cast<float>(area.height) * y_fraction));
-    const int right = area.x
-        + static_cast<int>(std::lround(
-            static_cast<float>(area.width) * (x_fraction + width_fraction)));
-    const int bottom = area.y
-        + static_cast<int>(std::lround(
-            static_cast<float>(area.height) * (y_fraction + height_fraction)));
-    const int width = std::max(320, right - x);
-    const int height = std::max(240, bottom - y);
-#ifdef _WIN32
-    HWND hwnd = glfwGetWin32Window(window);
-    if (hwnd != nullptr) {
-        const RECT target
-            = window_rect_for_visible_bounds(hwnd, x, y, width, height);
-        SetWindowPos(hwnd, nullptr, target.left, target.top,
-            target.right - target.left, target.bottom - target.top,
-            SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
-        return;
-    }
-#endif
-    glfwSetWindowPos(window, x, y);
-    glfwSetWindowSize(window, width, height);
 }
 
 void glfw_error_callback(int error, const char* description)

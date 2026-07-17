@@ -9,6 +9,7 @@
 #include "ui/shell/constants.hpp"
 #include "ui/shell/ime.hpp"
 #include "ui/shell/theme.hpp"
+#include "ui/shell/ui_layout.hpp"
 
 #include <imgui.h>
 

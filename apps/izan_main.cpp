@@ -27,7 +27,7 @@
 #include "ui/shell/fonts.hpp"
 #include "ui/shell/ime.hpp"
 #include "ui/shell/theme.hpp"
-#include "ui/shell/ui_state.hpp"
+#include "ui/shell/ui_layout.hpp"
 
 namespace {
 
@@ -39,8 +39,8 @@ struct Settings {
     std::string language = "en";
     int theme_index = 0;
     float window_opacity = 0.96f;
-    // Flattened ui::UiState. The shell owns what these mean (see
-    // ui/shell/ui_state.hpp); this file only owns where they live.
+    // Flattened ui::LayoutState. The shell owns what these mean (see
+    // ui/shell/ui_layout.hpp); this file only owns where they live.
     int window_w = 0;
     int window_h = 0;
     bool window_maximized = false;
@@ -48,13 +48,13 @@ struct Settings {
     std::vector<float> dock_ratios;
 };
 
-ui::UiState ui_state_of(const Settings& s)
+ui::LayoutState layout_state_of(const Settings& s)
 {
     return { s.window_w, s.window_h, s.window_maximized, s.layout,
         s.dock_ratios };
 }
 
-void merge_ui_state(const ui::UiState& u, Settings& s)
+void merge_layout_state(const ui::LayoutState& u, Settings& s)
 {
     s.window_w = u.window_w;
     s.window_h = u.window_h;
@@ -171,8 +171,8 @@ int main(int argc, char** argv)
     if (!app.init(options))
         return 1;
 
-    ui::UiStateKeeper ui_keeper;
-    ui_keeper.restore(app.window(), ui_state_of(settings));
+    ui::LayoutKeeper layout_keeper;
+    layout_keeper.restore(app.window(), layout_state_of(settings));
 
     ui::ChromeState chrome;
     chrome.theme_index = settings.theme_index;
@@ -289,17 +289,18 @@ int main(int argc, char** argv)
             settings.window_opacity = chrome.window_opacity;
             save_settings(settings);
         }
-        ui_keeper.update(app.window(), dockspace, [&](const ui::UiState& u) {
-            merge_ui_state(u, settings);
-            save_settings(settings);
-        });
+        layout_keeper.update(
+            app.window(), dockspace, [&](const ui::LayoutState& u) {
+                merge_layout_state(u, settings);
+                save_settings(settings);
+            });
         if (chrome.request_exit)
             glfwSetWindowShouldClose(app.window(), GLFW_TRUE);
 
         app.end_frame(ui::theme_clear_color(chrome));
     });
     app.run();
-    merge_ui_state(ui_keeper.final_state(), settings);
+    merge_layout_state(layout_keeper.final_state(), settings);
     save_settings(settings);
     return 0;
 }

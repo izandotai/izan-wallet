@@ -2,6 +2,7 @@
 
 #include "ui/shell/fonts.hpp"
 #include "ui/shell/theme.hpp"
+#include "ui/shell/ui_layout.hpp"
 #include "ui/shell/win_chrome.hpp"
 #include "ui/shell/win_console.hpp"
 

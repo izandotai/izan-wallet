@@ -6,8 +6,6 @@
 #include <imgui.h>
 
 #include <functional>
-#include <utility>
-#include <vector>
 
 struct GLFWwindow;
 
@@ -32,36 +30,5 @@ void draw_custom_title_bar(GLFWwindow* window, ChromeState& app,
 void draw_custom_menu_bar(
     ChromeState& app, const std::function<void()>& draw_items);
 void draw_status_bar(const ChromeState& app, const char* status_text);
-
-// Double-clicking a dock splitter resets it to 50/50 (VS Code sash
-// feel). Call once per frame right after DockSpace(). Also acts as the
-// ratio guardian: ImGui's native dock resize lets the central node
-// absorb all growth while other panes stay pixel-locked, so any outer
-// resize or splitter drag would skew unrelated panes — this keeps a
-// per-splitter ratio ledger, enforces it every frame (proportional
-// adaptation), lets only the dragged splitter learn a new ratio, and
-// rewrites the clicked splitter to 0.5 on double-click.
-void dock_splitter_dblclick_reset(unsigned int dockspace_id);
-
-// Call right BEFORE DockSpace() with the size the dockspace is about
-// to get. The post-pass above corrects ratios one frame late — during
-// a caption-drag restore the modal move loop renders exactly one frame
-// at the new size and then nothing until release, so that one frame
-// must already be right. When the host size is about to change, this
-// rewrites the tree's SizeRef to the ledger ratios at the new size so
-// the same frame lays out correctly. Splitter drags never change the
-// host size, so this stays silent and cannot fight them.
-void dock_ratio_guard_prepass(unsigned int dockspace_id, const ImVec2& size);
-
-// The ledger is session memory; these let the host persist it across
-// runs. The wire form is positional — splitter ratios in depth-first
-// order over the dockspace's split nodes — because nothing else is
-// stable: node ids get renumbered between the live tree and the saved
-// ini, and SizeRef is overwritten with already-mangled sizes by
-// imgui's lock-size-once paths before the first prepass can read it.
-// Imported ratios are staged and installed as each split materializes;
-// values outside (0.02, 0.98) are ignored there.
-std::vector<float> dock_ratio_ledger_export(unsigned int dockspace_id);
-void dock_ratio_ledger_import(const std::vector<float>& ratios);
 
 }
