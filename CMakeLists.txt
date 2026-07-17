@@ -175,6 +175,7 @@ target_link_libraries(izan_crypto PUBLIC izan_trezor izan_secure)
 # ABI words and selectors for contract reads (keccak from trezor).
 add_library(izan_codec STATIC
     core/codec/abi.cpp
+    core/codec/rlp.cpp
 )
 target_include_directories(izan_codec PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(izan_codec PUBLIC izan_units PRIVATE izan_trezor)
@@ -228,6 +229,7 @@ add_library(izan_domain STATIC
     domain/assets/balances.cpp
     domain/assets/portfolio.cpp
     domain/assets/token_registry.cpp
+    domain/tx/eip1559.cpp
 )
 target_include_directories(izan_domain PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(izan_domain PUBLIC izan_units
@@ -315,6 +317,7 @@ add_executable(izan_tests
     tests/portfolio_test.cpp
     tests/config_trust_test.cpp
     tests/i18n_test.cpp
+    tests/tx_test.cpp
     tests/keyd_test.cpp
     tests/linkbits_test.cpp
     tests/proposals_test.cpp
