@@ -462,10 +462,10 @@ void draw_custom_title_bar(GLFWwindow* window, ChromeState& app,
     // The izan mark, by decree an emoji: one colored glyph from the
     // waterfall's emoji face, sitting ahead of the title.
     ImGui::PushFont(nullptr, 22.0f);
-    const ImVec2 mark_size = ImGui::CalcTextSize("💠");
+    const ImVec2 mark_size = ImGui::CalcTextSize("⛩️");
     ImGui::SetCursorScreenPos(ImVec2(title_min.x + 14.0f,
         title_min.y + std::floor((kTitleBarHeight - mark_size.y) * 0.5f)));
-    ImGui::TextUnformatted("💠");
+    ImGui::TextUnformatted("⛩️");
     ImGui::PopFont();
     const float title_x = title_min.x + 14.0f + mark_size.x + 10.0f;
     ImGui::SetCursorScreenPos(ImVec2(title_x, text_y));
