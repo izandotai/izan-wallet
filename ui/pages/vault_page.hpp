@@ -79,7 +79,8 @@ private:
     std::string m_exe_path;
     Mode m_mode;
     bool m_unlocked = false;
-    std::string m_status; // last message key or verbatim error
+    std::string m_address; // account #0, fetched at unlock
+    std::string m_status;  // last message key or verbatim error
     bool m_status_is_key = false;
 
     std::array<char, 256> m_pass {};

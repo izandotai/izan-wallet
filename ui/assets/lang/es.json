@@ -62,5 +62,8 @@
     "send.confirmed": "Confirmada.",
     "send.reverted": "Revertida en la cadena.",
     "send.block": "Bloque",
-    "send.failed": "Falló."
+    "send.failed": "Falló.",
+    "vault.address": "Dirección",
+    "vault.busy": "Procesando…",
+    "ui.copy": "Clic para copiar"
 }

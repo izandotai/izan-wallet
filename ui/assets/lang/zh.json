@@ -62,5 +62,8 @@
     "send.confirmed": "已确认。",
     "send.reverted": "链上执行失败（已回滚）。",
     "send.block": "区块",
-    "send.failed": "失败。"
+    "send.failed": "失败。",
+    "vault.address": "地址",
+    "vault.busy": "处理中…",
+    "ui.copy": "点击复制"
 }

@@ -77,10 +77,17 @@ void VaultPage::poll_job()
     if (phase == 0)
         return;
     if (phase == 1) {
+        m_status.clear(); // e.g. the "unlocking…" notice has served
         m_mode = m_job->next;
         m_unlocked = m_mode == Mode::Unlocked;
         if (m_mode == Mode::ShowMnemonic)
             m_mnemonic_show = std::move(m_job->secret);
+        if (m_unlocked && m_keyd) {
+            // The receive address, fetched once per unlock: the first
+            // thing a person needs from an unlocked wallet.
+            auto addr = m_keyd->address();
+            m_address = addr ? *addr : m_keyd->last_error();
+        }
     } else if (m_job->error.find("passphrase") != std::string::npos) {
         // Known trust-plane refusals ("bad passphrase", "wrong
         // passphrase or corrupted vault") get translated text; anything
@@ -334,6 +341,15 @@ void VaultPage::draw_locked(const i18n::Catalog& tr)
 void VaultPage::draw_unlocked(const i18n::Catalog& tr)
 {
     ImGui::TextUnformatted(tr("vault.state.unlocked"));
+    if (!m_address.empty()) {
+        ImGui::TextDisabled("%s", tr("vault.address"));
+        ImGui::SameLine();
+        ImGui::TextUnformatted(m_address.c_str());
+        if (ImGui::IsItemClicked())
+            ImGui::SetClipboardText(m_address.c_str());
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("%s", tr("ui.copy"));
+    }
     ImGui::Spacing();
 
     const bool busy = m_job != nullptr;
@@ -341,6 +357,7 @@ void VaultPage::draw_unlocked(const i18n::Catalog& tr)
     if (ImGui::Button(tr("vault.lock")) && m_keyd) {
         if (m_keyd->lock()) {
             m_unlocked = false;
+            m_address.clear();
             m_status.clear();
             m_mode = Mode::Locked;
         }
@@ -380,7 +397,7 @@ void VaultPage::draw_unlocked(const i18n::Catalog& tr)
     }
     ImGui::EndDisabled();
     if (busy)
-        ImGui::TextDisabled("%s", tr("vault.busy.unlocking"));
+        ImGui::TextDisabled("%s", tr("vault.busy"));
 }
 
 }

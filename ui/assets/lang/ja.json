@@ -62,5 +62,8 @@
     "send.confirmed": "確認されました。",
     "send.reverted": "チェーン上で失敗（リバート）しました。",
     "send.block": "ブロック",
-    "send.failed": "失敗しました。"
+    "send.failed": "失敗しました。",
+    "vault.address": "アドレス",
+    "vault.busy": "処理中…",
+    "ui.copy": "クリックでコピー"
 }

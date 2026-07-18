@@ -62,5 +62,8 @@
     "send.confirmed": "Подтверждено.",
     "send.reverted": "Отменено в сети (revert).",
     "send.block": "Блок",
-    "send.failed": "Не удалось."
+    "send.failed": "Не удалось.",
+    "vault.address": "Адрес",
+    "vault.busy": "Выполняется…",
+    "ui.copy": "Нажмите, чтобы скопировать"
 }

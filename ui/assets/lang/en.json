@@ -62,5 +62,8 @@
     "send.confirmed": "Confirmed.",
     "send.reverted": "Reverted on-chain.",
     "send.block": "Block",
-    "send.failed": "Failed."
+    "send.failed": "Failed.",
+    "vault.address": "Address",
+    "vault.busy": "Working…",
+    "ui.copy": "Click to copy"
 }
