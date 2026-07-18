@@ -141,18 +141,17 @@ void PortfolioPage::refresh(const std::string& address)
 
 void PortfolioPage::draw(const i18n::Catalog& tr)
 {
-    if (m_job) {
+    if (m_job && m_job->phase.load() != 0) {
+        // Only the followed address's snapshot may land — rows or
+        // error; anything else speaks for an account that already
+        // left the stage.
         const int phase = m_job->phase.load();
-        if (phase == 1) {
-            // Only the followed address's rows may land; anything else
-            // is a snapshot of a wallet that already left the stage.
-            if (m_job->address == m_followed) {
-                m_rows = std::move(m_job->rows);
-                m_fetched_at = ImGui::GetTime();
-                m_status.clear();
-            }
-            m_job.reset();
-        } else if (phase == 2) {
+        const bool current = m_job->address == m_followed;
+        if (phase == 1 && current) {
+            m_rows = std::move(m_job->rows);
+            m_fetched_at = ImGui::GetTime();
+            m_status.clear();
+        } else if (phase == 2 && current) {
             if (m_job->error.find("address") != std::string::npos) {
                 m_status = "portfolio.err.address";
                 m_status_is_key = true;
@@ -160,8 +159,13 @@ void PortfolioPage::draw(const i18n::Catalog& tr)
                 m_status = m_job->error;
                 m_status_is_key = false;
             }
-            m_job.reset();
         }
+        m_job.reset();
+        // The account switched while this snapshot flew, and the
+        // switch's own refresh was swallowed by the single-driver
+        // gate — chase the address now on screen.
+        if (!current && !m_followed.empty())
+            refresh(m_followed);
     }
 
     ImGui::Begin(

@@ -9,6 +9,7 @@
 #include "ui/widgets/avatar.hpp"
 #include "ui/widgets/design.hpp"
 #include "ui/widgets/text_field.hpp"
+#include "ui/widgets/tooltip.hpp"
 
 namespace izan::ui {
 
@@ -102,7 +103,7 @@ namespace {
 }
 
 bool kit_amount_field(const char* id, char* buf, std::size_t size,
-    const char* badge, bool* badge_clicked)
+    const char* badge, bool* badge_clicked, const char* badge_hint)
 {
     const float em = ImGui::GetFontSize();
     const float w = ImGui::CalcItemWidth();
@@ -160,8 +161,11 @@ bool kit_amount_field(const char* id, char* buf, std::size_t size,
             ImVec2(fmax.x - bw - em * 0.35f, (pos.y + fmax.y - bh) * 0.5f));
         ImGui::InvisibleButton("##badge", ImVec2(bw, bh));
         const bool hovered = ImGui::IsItemHovered();
-        if (hovered)
+        if (hovered) {
             ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+            if (badge_hint && *badge_hint)
+                kit_tooltip(badge_hint);
+        }
         if (badge_clicked && ImGui::IsItemClicked())
             *badge_clicked = true;
 

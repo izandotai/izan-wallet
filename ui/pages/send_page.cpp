@@ -271,8 +271,9 @@ void SendPage::draw_form(const i18n::Catalog& tr)
     ImGui::SetCursorPosX(left);
     ImGui::SetNextItemWidth(col);
     bool pick_asset = false;
+    const std::string badge_hint = asset.symbol + " · " + chain.name;
     kit_amount_field("##send-amount", m_amount.data(), m_amount.size(),
-        asset.symbol.c_str(), &pick_asset);
+        asset.symbol.c_str(), &pick_asset, badge_hint.c_str());
     if (pick_asset)
         ImGui::OpenPopup("##send-asset-pop");
     if (kit_menu_begin("##send-asset-pop")) {
