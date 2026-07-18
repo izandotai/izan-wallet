@@ -20,7 +20,9 @@ UnlockView::Event UnlockView::draw(const i18n::Catalog& tr, bool busy,
 {
     Event ev;
     const float em = ImGui::GetFontSize();
-    const float col = em * design().form_width;
+    const float avail = ImGui::GetContentRegionAvail().x;
+    const float col
+        = em * design().form_width < avail ? em * design().form_width : avail;
     const float width = ImGui::GetWindowSize().x;
     auto centered = [&](float w) {
         ImGui::SetCursorPosX((width - w) * 0.5f > 0 ? (width - w) * 0.5f : 0);

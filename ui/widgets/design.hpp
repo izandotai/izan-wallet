@@ -73,4 +73,11 @@ bool kit_is_dark();  // does the active theme read as dark
 ImVec4 kit_accent(); // the theme's accent (checkmark color)
 ImVec4 kit_danger(); // destructive red, blended toward the theme
 
+// Whole pixels only: font sizes and hand-drawn text positions snap to
+// the grid, or FreeType renders them soft.
+inline float kit_snap(float v)
+{
+    return float(int(v + 0.5f));
+}
+
 }

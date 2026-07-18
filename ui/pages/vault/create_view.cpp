@@ -22,7 +22,9 @@ CreateView::Event CreateView::draw(const i18n::Catalog& tr, bool busy,
 {
     Event ev;
     const float em = ImGui::GetFontSize();
-    const float col = em * design().form_width;
+    const float avail = ImGui::GetContentRegionAvail().x - em * 1.4f;
+    const float col
+        = em * design().form_width < avail ? em * design().form_width : avail;
 
     kit_title(tr("vault.create"));
     kit_vspace(0.5f);

@@ -25,8 +25,8 @@ void AccountsView::set_labels(
 }
 
 AccountsView::Event AccountsView::draw(const i18n::Catalog& tr, bool busy,
-    bool& secret_focus, std::span<const std::string> addresses, uint32_t active,
-    bool hd)
+    bool& secret_focus, std::span<const std::string> addresses,
+    std::span<const std::string> balances, uint32_t active, bool hd)
 {
     Event ev;
     const float em = ImGui::GetFontSize();
@@ -66,12 +66,24 @@ AccountsView::Event AccountsView::draw(const i18n::Catalog& tr, bool busy,
                 strnlen(m_labels[i].data(), m_labels[i].size()));
         }
 
-        // Address: right-aligned to the row's edge, middle-elided to
-        // whatever space the row leaves, click to copy — the
-        // confirmation takes the address's place.
+        // Balance (when known), then the address right-aligned with
+        // room reserved for the QR button, then the button itself.
+        if (i < balances.size() && !balances[std::size_t(i)].empty()) {
+            ImGui::SameLine();
+            ImGui::PushFont(nullptr, kit_caption_size());
+            ImGui::TextDisabled("%s", balances[std::size_t(i)].c_str());
+            ImGui::PopFont();
+        }
         ImGui::SameLine();
         kit_copy_text_right("##addr", addresses[std::size_t(i)].c_str(),
-            tr("ui.copy"), tr("ui.copied"));
+            tr("ui.copy"), tr("ui.copied"), 2.6f);
+        ImGui::SameLine();
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX()
+            + ImGui::GetContentRegionAvail().x - em * 2.2f);
+        if (kit_subtle_button("QR")) {
+            m_qr_index = int(i);
+            m_open_qr = true;
+        }
         ImGui::PopID();
     }
     if (hd) {
@@ -95,6 +107,28 @@ AccountsView::Event AccountsView::draw(const i18n::Catalog& tr, bool busy,
     if (busy) {
         ImGui::SameLine();
         ImGui::TextDisabled("%s", tr("vault.busy"));
+    }
+
+    // The receive QR: the address as a scannable code, plus the full
+    // text to copy — a dialog because a code this small is useless.
+    if (m_open_qr) {
+        kit_dialog_open("##qr-view");
+        m_open_qr = false;
+    }
+    if (kit_dialog_begin("##qr-view")) {
+        if (m_qr_index >= 0 && std::size_t(m_qr_index) < addresses.size()) {
+            const std::string& addr = addresses[std::size_t(m_qr_index)];
+            const float qr_side = em * 9.0f;
+            ImGui::SetCursorPosX((ImGui::GetWindowWidth() - qr_side) * 0.5f);
+            kit_qr(addr.c_str(), 9.0f);
+            kit_vspace(0.4f);
+            kit_copy_text(
+                "##qr-addr", addr.c_str(), tr("ui.copy"), tr("ui.copied"));
+            kit_vspace(0.3f);
+            if (kit_subtle_button(tr("ui.back")))
+                kit_dialog_close();
+        }
+        kit_dialog_end();
     }
 
     if (m_open_backup) {

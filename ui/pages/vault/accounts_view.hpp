@@ -34,14 +34,19 @@ public:
     // derive).
     void set_labels(std::span<const std::string> labels, std::size_t count);
 
+    // balances pairs with addresses by index; an empty string means
+    // unknown and shows nothing.
     Event draw(const i18n::Catalog& tr, bool busy, bool& secret_focus,
-        std::span<const std::string> addresses, uint32_t active, bool hd);
+        std::span<const std::string> addresses,
+        std::span<const std::string> balances, uint32_t active, bool hd);
 
 private:
     std::array<char, 256> m_pass {};
     std::vector<std::array<char, 48>> m_labels;
     bool m_open_backup = false;
     bool m_focus_backup = false;
+    int m_qr_index = -1; // row whose QR dialog is up
+    bool m_open_qr = false;
 };
 
 }

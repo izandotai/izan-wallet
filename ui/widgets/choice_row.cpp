@@ -1,5 +1,7 @@
 #include "ui/widgets/choice_row.hpp"
 
+#include <string>
+
 #include <imgui.h>
 
 #include "ui/widgets/design.hpp"
@@ -45,15 +47,23 @@ bool kit_choice_row(const char* id, const char* label,
     ImDrawList* draw = ImGui::GetWindowDrawList();
     draw_mark(
         draw, ImVec2(pos.x + em * 0.4f, pos.y + row_h * 0.5f), em, selected);
-    draw->AddText(ImVec2(pos.x + em * 1.1f, pos.y + (row_h - em) * 0.5f),
+    const float label_x = pos.x + em * 1.1f;
+    draw->AddText(
+        ImVec2(kit_snap(label_x), kit_snap(pos.y + (row_h - em) * 0.5f)),
         ImGui::GetColorU32(ImGuiCol_Text), label);
     if (trailing_caption && *trailing_caption) {
+        // The caption keeps clear of the label — elided before it may
+        // ever overlap, with a breath of space guaranteed between.
+        const float label_end = label_x + ImGui::CalcTextSize(label).x;
+        const float budget = pos.x + row_w - label_end - em * 0.8f;
         ImGui::PushFont(nullptr, kit_caption_size());
-        const float w = ImGui::CalcTextSize(trailing_caption).x;
-        const float x = pos.x + row_w - w;
+        const std::string text
+            = budget > 0.0f ? kit_elide_middle(trailing_caption, budget) : "";
+        const float w = ImGui::CalcTextSize(text.c_str()).x;
         draw->AddText(ImGui::GetFont(), kit_caption_size(),
-            ImVec2(x, pos.y + (row_h - kit_caption_size()) * 0.5f),
-            ImGui::GetColorU32(ImGuiCol_TextDisabled), trailing_caption);
+            ImVec2(kit_snap(pos.x + row_w - w),
+                kit_snap(pos.y + (row_h - kit_caption_size()) * 0.5f)),
+            ImGui::GetColorU32(ImGuiCol_TextDisabled), text.c_str());
         ImGui::PopFont();
     }
     return clicked;

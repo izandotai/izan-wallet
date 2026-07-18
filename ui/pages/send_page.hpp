@@ -80,9 +80,10 @@ private:
     // The reviewed draft; immutable once the proposal is submitted —
     // keyd signs the queue's copy of exactly these bytes.
     tx::Eip1559Tx m_tx;
+    std::string m_wallet_seen; // last active wallet id; a switch resets
     std::string m_from;
-    uint32_t m_account = 0; // captured at review, rides the envelope
-    uint8_t m_preset = 0;   // derivation preset, captured with the account
+    uint32_t m_account = 0;    // captured at review, rides the envelope
+    uint8_t m_preset = 0;      // derivation preset, captured with the account
     std::string m_to_checked;
     uint64_t m_proposal = 0;
 

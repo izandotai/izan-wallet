@@ -139,6 +139,14 @@ void SendPage::draw(GLFWwindow* window, const i18n::Catalog& tr)
 {
     poll_job();
 
+    // A wallet switch means every draft, error and proposal here spoke
+    // for somebody else; start the page over.
+    if (m_vault.active() != m_wallet_seen) {
+        m_wallet_seen = m_vault.active();
+        m_job.reset();
+        reset_to_form();
+    }
+
     ImGui::Begin((std::string(tr("send.title")) + "###send-page").c_str());
 
     switch (m_stage) {

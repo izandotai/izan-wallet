@@ -28,9 +28,10 @@ void draw_placeholder_pane(const char* name, const char* line)
     ImGui::End();
 }
 
-// The kit gallery: every component of the widget library on one page,
-// with fake data — the design-review surface. Layout regressions get
-// caught here, by eye, without unlocking anything.
+// The components page: every widget in the kit on one scrolling page,
+// with fake data — the design-review surface, same idea as a frontend
+// library's component showcase. Layout regressions get caught here, by
+// eye, without unlocking anything.
 void draw_kit_gallery()
 {
     using namespace izan::ui;
@@ -40,18 +41,85 @@ void draw_kit_gallery()
     static bool toggled = true;
     static std::array<char, 48> name {};
     static std::array<char, 256> pass {};
+    static std::array<char, 1024> paste {};
+    static int chain = 0;
     bool secret_focus = false;
     const float em = ImGui::GetFontSize();
 
-    ImGui::Begin("Kit");
+    ImGui::Begin("Components");
 
-    kit_title("账户");
-    kit_vspace(0.15f);
-    kit_group_begin("##acc");
+    kit_title("Components");
+    kit_caption("izan kit · 设计语言 Cupertino · 全部组件");
+    kit_vspace();
+
+    kit_heading("排版 label");
+    kit_group_begin("##sec-type");
+    kit_title("标题 Title");
+    kit_heading("小标题 Heading");
+    ImGui::TextUnformatted("正文 Body");
+    kit_caption("说明 Caption");
+    kit_group_end();
+    kit_vspace();
+
+    kit_heading("按钮 button");
+    kit_group_begin("##sec-buttons");
+    kit_subtle_button("次要");
+    ImGui::SameLine();
+    kit_primary_button("主要");
+    ImGui::SameLine();
+    kit_danger_button("危险");
+    ImGui::SameLine();
+    kit_link_button("链接动作");
+    kit_group_end();
+    kit_vspace();
+
+    kit_heading("徽标 pill · avatar");
+    kit_group_begin("##sec-badges");
+    kit_pill("HD 钱包", kit_accent());
+    ImGui::SameLine();
+    kit_pill("已锁定", ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+    ImGui::SameLine();
+    kit_avatar("老干妈?", em * 1.7f);
+    ImGui::SameLine();
+    kit_avatar("Solana", em * 1.7f);
+    ImGui::SameLine();
+    kit_avatar("main", em * 1.7f);
+    kit_group_end();
+    kit_vspace();
+
+    kit_heading("表单 text_field · secret · select · toggle");
+    kit_group_begin("##sec-forms");
+    ImGui::SetNextItemWidth(em * 10.0f);
+    kit_text_field("##name", "钱包名称", name.data(), name.size());
+    ImGui::SetNextItemWidth(em * 10.0f);
+    secret_field("##pass", pass, secret_focus, "口令");
+    if (kit_select_begin(
+            "##chain", chain == 0 ? "Ethereum" : "Sepolia", em * 10.0f)) {
+        if (kit_select_item("Ethereum", chain == 0))
+            chain = 0;
+        if (kit_select_item("Sepolia", chain == 1))
+            chain = 1;
+        kit_select_end();
+    }
+    kit_toggle("##t", &toggled);
+    kit_group_end();
+    kit_vspace();
+
+    kit_heading("粘贴框 paste_box");
+    kit_group_begin("##sec-paste");
+    kit_paste_box("##paste", paste.data(), paste.size(), 3.0f, secret_focus);
+    kit_group_end();
+    kit_vspace();
+
+    kit_heading("账户行 selection_mark · copy_text · 余额列 · QR");
+    kit_group_begin("##sec-acc");
     static const char* kAddrs[3]
         = { "CNLDm8FPe7HMVnvuNy287zUHjqYtQGnPJgxSup2LMJzD",
               "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
               "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu" };
+    static const char* kBals[3] = { "", "0.0012 ETH", "" };
+    static int qr_row = -1;
+    static bool open_qr = false;
     for (int i = 0; i < 3; ++i) {
         ImGui::PushID(i);
         if (i > 0)
@@ -66,8 +134,21 @@ void draw_kit_gallery()
         ImGui::SameLine(em * 3.2f);
         ImGui::SetNextItemWidth(em * 6.0f);
         kit_text_field("##note", "备注", notes[i].data(), notes[i].size());
+        if (*kBals[i]) {
+            ImGui::SameLine();
+            ImGui::PushFont(nullptr, kit_caption_size());
+            ImGui::TextDisabled("%s", kBals[i]);
+            ImGui::PopFont();
+        }
         ImGui::SameLine();
-        kit_copy_text_right("##addr", kAddrs[i], "复制", "已复制");
+        kit_copy_text_right("##addr", kAddrs[i], "复制", "已复制", 2.6f);
+        ImGui::SameLine();
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX()
+            + ImGui::GetContentRegionAvail().x - em * 2.2f);
+        if (kit_subtle_button("QR")) {
+            qr_row = i;
+            open_qr = true;
+        }
         ImGui::PopID();
     }
     kit_hairline();
@@ -75,43 +156,85 @@ void draw_kit_gallery()
     kit_group_end();
     kit_vspace();
 
-    kit_heading("选择行");
-    kit_group_begin("##choices");
-    if (kit_choice_row("##c0", "MetaMask", "0xd8dA6BF2…A96045", preset == 0))
+    kit_heading("选择行 choice_row");
+    kit_group_begin("##sec-choices");
+    if (kit_choice_row("##c0", "MetaMask",
+            "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", preset == 0))
         preset = 0;
     kit_hairline();
-    if (kit_choice_row(
-            "##c1", "BTC SegWit (BIP84)", "bc1qcr8te4k…306fyu", preset == 1))
+    if (kit_choice_row("##c1", "BTC Nested SegWit (BIP49)",
+            "3D9iyFHi1Zs9KoyynUfrL82rGhJfYTfSG4", preset == 1))
         preset = 1;
     kit_group_end();
     kit_vspace();
 
-    kit_heading("控件");
-    kit_subtle_button("取消");
-    ImGui::SameLine();
-    kit_primary_button("确认");
-    ImGui::SameLine();
-    kit_danger_button("删除");
-    ImGui::SameLine();
-    kit_link_button("链接动作");
-    ImGui::SameLine();
-    kit_toggle("##t", &toggled);
-    ImGui::SameLine();
+    kit_heading("反馈 spinner · step_dots");
+    kit_group_begin("##sec-feedback");
     kit_spinner();
     ImGui::SameLine();
     kit_step_dots(1, 3);
-    kit_pill("HD 钱包", kit_accent());
-    ImGui::SameLine();
-    kit_pill("已锁定", ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-    ImGui::SameLine();
-    kit_avatar("老干妈?", em * 1.7f);
+    kit_group_end();
     kit_vspace();
 
-    kit_heading("表单");
-    ImGui::SetNextItemWidth(em * 10.0f);
-    kit_text_field("##name", "钱包名称", name.data(), name.size());
-    ImGui::SetNextItemWidth(em * 10.0f);
-    secret_field("##pass", pass, secret_focus, "口令");
+    kit_heading("表格 table");
+    kit_group_begin("##sec-table");
+    if (kit_table_begin("##demo-table", 3)) {
+        static const char* kCols[3] = { "链", "资产", "余额" };
+        kit_table_headers(kCols, 3);
+        for (int r = 0; r < 2; ++r) {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(r == 0 ? "Ethereum" : "Polygon");
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(r == 0 ? "ETH" : "USDC.e");
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(r == 0 ? "0.0012" : "0.10");
+        }
+        kit_table_end();
+    }
+    kit_group_end();
+    kit_vspace();
+
+    kit_heading("二维码 qr");
+    kit_qr("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", 7.0f);
+    kit_vspace();
+
+    kit_heading("对话框 dialog");
+    if (kit_primary_button("打开对话框"))
+        kit_dialog_open("##demo-dialog");
+    if (kit_dialog_begin("##demo-dialog")) {
+        kit_dialog_header_avatar("老干妈?", "重命名", "示例说明文字。");
+        kit_dialog_field_width();
+        kit_text_field("##dname", "钱包名称", name.data(), name.size());
+        if (kit_dialog_buttons("取消", "确认") != 0)
+            kit_dialog_close();
+        kit_dialog_end();
+    }
+    kit_vspace();
+
+    kit_heading("空状态 empty_state");
+    ImGui::BeginChild("##sec-empty", ImVec2(0.0f, em * 7.0f));
+    kit_empty_state("👛", "这里还没有内容");
+    ImGui::EndChild();
+
+    // The account rows' QR dialog, shared by the section above.
+    if (open_qr) {
+        kit_dialog_open("##demo-qr");
+        open_qr = false;
+    }
+    if (kit_dialog_begin("##demo-qr")) {
+        if (qr_row >= 0) {
+            const float side = em * 9.0f;
+            ImGui::SetCursorPosX((ImGui::GetWindowWidth() - side) * 0.5f);
+            kit_qr(kAddrs[qr_row], 9.0f);
+            kit_vspace(0.4f);
+            kit_copy_text("##demo-qr-addr", kAddrs[qr_row], "复制", "已复制");
+            kit_vspace(0.3f);
+            if (kit_subtle_button("返回"))
+                kit_dialog_close();
+        }
+        kit_dialog_end();
+    }
 
     ImGui::End();
 }

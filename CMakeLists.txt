@@ -296,10 +296,21 @@ if(IZAN_BUILD_UI AND WIN32)
             COMMENT "Copying ui assets for ${target}")
     endfunction()
 
+    # QR codes for receive flows: nayuki's reference implementation,
+    # pinned tarball, a single translation unit compiled into the kit.
+    FetchContent_Declare(qrcodegen
+        URL https://github.com/nayuki/QR-Code-generator/archive/refs/tags/v1.8.0.tar.gz
+        DOWNLOAD_EXTRACT_TIMESTAMP ON
+        SOURCE_SUBDIR cmake-subdir-does-not-exist
+        EXCLUDE_FROM_ALL
+    )
+    FetchContent_MakeAvailable(qrcodegen)
+
     # The kit: izan's own widget library — every component drawn in the
     # active design language. Its own library so the smoke harness can
     # host a component gallery without dragging the wallet in.
     add_library(izan_kit STATIC
+        ${qrcodegen_SOURCE_DIR}/cpp/qrcodegen.cpp
         ui/widgets/avatar.cpp
         ui/widgets/button.cpp
         ui/widgets/card.cpp
@@ -311,6 +322,7 @@ if(IZAN_BUILD_UI AND WIN32)
         ui/widgets/label.cpp
         ui/widgets/list_row.cpp
         ui/widgets/pill.cpp
+        ui/widgets/qr.cpp
         ui/widgets/select.cpp
         ui/widgets/spinner.cpp
         ui/widgets/step_dots.cpp
@@ -319,7 +331,8 @@ if(IZAN_BUILD_UI AND WIN32)
         ui/widgets/toggle.cpp
         ui/widgets/tooltip.cpp
     )
-    target_include_directories(izan_kit PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_include_directories(izan_kit PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+        PRIVATE ${qrcodegen_SOURCE_DIR}/cpp)
     target_link_libraries(izan_kit PUBLIC izan_imgui izan_secure)
 
     # WIN32 = windows subsystem: no console flashes up on double-click;

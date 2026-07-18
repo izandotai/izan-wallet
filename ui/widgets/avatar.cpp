@@ -30,12 +30,12 @@ void kit_avatar_at(ImVec2 pos, const char* name, float size)
         while ((*end & 0xC0) == 0x80)
             ++end;
     }
-    const float glyph_size = size * dl.avatar_glyph;
+    const float glyph_size = kit_snap(size * dl.avatar_glyph);
     ImGui::PushFont(nullptr, glyph_size);
     const ImVec2 text_size = ImGui::CalcTextSize(name, end);
     draw->AddText(ImGui::GetFont(), glyph_size,
-        ImVec2(pos.x + (size - text_size.x) * 0.5f,
-            pos.y + (size - text_size.y) * 0.5f),
+        ImVec2(kit_snap(pos.x + (size - text_size.x) * 0.5f),
+            kit_snap(pos.y + (size - text_size.y) * 0.5f)),
         IM_COL32(255, 255, 255, 235), name, end);
     ImGui::PopFont();
 }

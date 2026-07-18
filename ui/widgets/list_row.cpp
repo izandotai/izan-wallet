@@ -32,15 +32,15 @@ bool kit_list_row(const char* id, const char* title, const char* subtitle,
         title, avatar);
 
     const bool has_subtitle = subtitle && *subtitle;
-    const float text_x = pos.x + em * 0.35f + avatar + em * 0.45f;
-    const float name_y
-        = has_subtitle ? pos.y + em * 0.28f : pos.y + (row_h - em) * 0.5f;
+    const float text_x = kit_snap(pos.x + em * 0.35f + avatar + em * 0.45f);
+    const float name_y = kit_snap(
+        has_subtitle ? pos.y + em * 0.28f : pos.y + (row_h - em) * 0.5f);
     draw->AddText(
         ImVec2(text_x, name_y), ImGui::GetColorU32(ImGuiCol_Text), title);
     if (has_subtitle) {
         ImGui::PushFont(nullptr, kit_caption_size());
         draw->AddText(ImGui::GetFont(), kit_caption_size(),
-            ImVec2(text_x, name_y + em * 1.05f),
+            ImVec2(text_x, kit_snap(name_y + em * 1.05f)),
             ImGui::GetColorU32(ImGuiCol_TextDisabled), subtitle);
         ImGui::PopFont();
     }

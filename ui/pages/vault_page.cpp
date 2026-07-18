@@ -7,9 +7,15 @@
 #include <imgui.h>
 #include <sodium.h>
 
+#include <fstream>
+#include <sstream>
+
 #include "core/crypto/bip39.hpp"
 #include "core/crypto/sol.hpp"
 #include "core/secure/vault.hpp"
+#include "core/units/decimal.hpp"
+#include "domain/assets/balances.hpp"
+#include "domain/chains/rpc_client.hpp"
 #include "keyd/signer.hpp"
 #include "ui/shell/ime.hpp"
 #include "ui/wallet/import_model.hpp"
@@ -20,10 +26,12 @@ namespace izan::ui {
 
 using secure::SecureBytes;
 
-VaultPage::VaultPage(std::filesystem::path wallets_dir, std::string exe_path,
+VaultPage::VaultPage(std::filesystem::path wallets_dir,
+    std::filesystem::path data_dir, std::string exe_path,
     std::string initial_active)
     : m_store(std::move(wallets_dir))
     , m_session(std::move(exe_path))
+    , m_data_dir(std::move(data_dir))
 {
     if (m_store.empty()) {
         m_mode = Mode::NoWallets;
@@ -38,6 +46,8 @@ VaultPage::~VaultPage() = default;
 void VaultPage::switch_active(const std::string& id)
 {
     m_session.teardown();
+    m_balances.clear();
+    m_bal_job.reset();
     m_create.reset();
     m_import.reset();
     m_unlock.reset();
@@ -123,6 +133,7 @@ void VaultPage::poll_job()
                 m_store.rescan(); // the card face shows kind and count
             }
             m_accounts.set_labels(m_meta.labels, actual);
+            fetch_balances();
         }
     } else if (m_job->error.find("passphrase") != std::string::npos) {
         // Known trust-plane refusals ("bad passphrase", "wrong
@@ -140,6 +151,11 @@ void VaultPage::poll_job()
 void VaultPage::draw(GLFWwindow* window, const i18n::Catalog& tr)
 {
     poll_job();
+    if (m_bal_job && m_bal_job->phase.load() != 0) {
+        if (m_bal_job->phase.load() == 1)
+            m_balances = std::move(m_bal_job->out);
+        m_bal_job.reset();
+    }
     if (m_pending_mode) {
         m_mode = *m_pending_mode;
         m_pending_mode.reset();
@@ -227,7 +243,7 @@ void VaultPage::draw(GLFWwindow* window, const i18n::Catalog& tr)
     }
     case Mode::Unlocked:
         handle_accounts(m_accounts.draw(tr, busy, m_secret_focus,
-            m_session.addresses(), m_meta.active,
+            m_session.addresses(), m_balances, m_meta.active,
             m_session.client()
                 && m_session.client()->wallet_kind()
                     == keyd::RevealKind::SeedEntropy));
@@ -254,6 +270,48 @@ void VaultPage::draw(GLFWwindow* window, const i18n::Catalog& tr)
     }
 
     ImGui::End();
+}
+
+void VaultPage::fetch_balances()
+{
+    m_balances.clear();
+    // EVM wallets only for now; the other families get their balance
+    // readers with their own engines.
+    if (keyd::preset_family(keyd::DerivePreset(m_meta.preset))
+        != keyd::ChainFamily::Eth)
+        return;
+    auto job = std::make_shared<BalanceJob>();
+    m_bal_job = job;
+    std::thread([job, addrs = m_session.addresses(),
+                    chains_path = m_data_dir / "chains.json"]() {
+        try {
+            std::ifstream f(chains_path, std::ios::binary);
+            std::ostringstream ss;
+            ss << f.rdbuf();
+            const chains::ChainRegistry registry
+                = chains::ChainRegistry::from_json(ss.str());
+            const chains::ChainSpec& spec = registry.all().front();
+            chains::RpcClient rpc(spec);
+            for (const std::string& addr : addrs) {
+                std::string line;
+                try {
+                    const units::U256 wei = assets::native_balance(rpc, addr);
+                    line = units::format_units(wei, spec.decimals);
+                    // Four decimals is garnish enough for a sidebar.
+                    const auto dot = line.find('.');
+                    if (dot != std::string::npos && line.size() > dot + 5)
+                        line.resize(dot + 5);
+                    line += " " + spec.symbol;
+                } catch (const std::exception&) {
+                    // An unreadable balance shows nothing, not zero.
+                }
+                job->out.push_back(std::move(line));
+            }
+            job->phase.store(1);
+        } catch (const std::exception&) {
+            job->phase.store(2);
+        }
+    }).detach();
 }
 
 void VaultPage::handle_list(WalletListView::Event ev)
@@ -473,6 +531,7 @@ void VaultPage::handle_accounts(AccountsView::Event ev)
         m_store.write_meta(m_active, m_meta);
         m_store.rescan(); // the card face shows the count
         m_session.push_address(m_meta.count - 1, m_meta.preset);
+        fetch_balances();
         break;
     case AccountsView::Event::Type::LabelEdit:
         if (ev.index >= m_meta.labels.size())

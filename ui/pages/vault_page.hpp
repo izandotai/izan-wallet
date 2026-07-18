@@ -6,6 +6,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "core/secure/secure_bytes.hpp"
 #include "keyd/client.hpp"
@@ -40,8 +41,8 @@ namespace izan::ui {
 //    key, and backup re-presents the passphrase (Op::Reveal).
 class VaultPage {
 public:
-    VaultPage(std::filesystem::path wallets_dir, std::string exe_path,
-        std::string initial_active);
+    VaultPage(std::filesystem::path wallets_dir, std::filesystem::path data_dir,
+        std::string exe_path, std::string initial_active);
     ~VaultPage();
 
     void draw(GLFWwindow* window, const i18n::Catalog& tr);
@@ -110,6 +111,7 @@ private:
     void start_backup(secure::SecureBytes pass);
     void handle_accounts(AccountsView::Event ev);
     void handle_list(WalletListView::Event ev);
+    void fetch_balances(); // async native balances for the account line
 
     WalletStore m_store;
     KeydSession m_session;
@@ -131,8 +133,20 @@ private:
     bool m_status_is_key = false;
     std::optional<Mode> m_pending_mode; // applied at the next frame's top
     std::shared_ptr<Job> m_job;
+
+    // Native balances for the account line, fetched in the background
+    // after unlock (EVM wallets, the registry's first chain). Display
+    // garnish — an empty string shows nothing.
+    struct BalanceJob {
+        std::atomic<int> phase { 0 };
+        std::vector<std::string> out;
+    };
+
+    std::filesystem::path m_data_dir;
+    std::vector<std::string> m_balances;
+    std::shared_ptr<BalanceJob> m_bal_job;
     bool m_ime_disabled = false;
-    bool m_secret_focus = false;        // a secret field is active this frame
+    bool m_secret_focus = false; // a secret field is active this frame
 };
 
 }

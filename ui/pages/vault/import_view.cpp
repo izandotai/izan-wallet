@@ -50,6 +50,9 @@ ImportView::Event ImportView::draw(const i18n::Catalog& tr, bool busy,
 
     kit_title(tr("vault.import"));
     ImGui::SameLine();
+    // The dots ride the title's line; nudge them onto its center.
+    ImGui::SetCursorPosY(
+        ImGui::GetCursorPosY() + (kit_title_size() - em) * 0.5f);
     kit_step_dots(m_step == Step::Paste ? 0 : 1, 2);
     kit_vspace(0.4f);
 
@@ -116,7 +119,10 @@ ImportView::Event ImportView::draw(const i18n::Catalog& tr, bool busy,
     kit_caption(m_model.preview(chosen).c_str());
     kit_vspace(0.4f);
 
-    const float col = em * design().form_width;
+    const float form_avail = ImGui::GetContentRegionAvail().x - em * 1.4f;
+    const float col = em * design().form_width < form_avail
+        ? em * design().form_width
+        : form_avail;
     kit_group_begin("##import-fields", col + em * 1.2f);
     ImGui::SetNextItemWidth(col);
     if (m_focus_pending && !busy) {

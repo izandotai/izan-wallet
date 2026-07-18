@@ -200,7 +200,8 @@ int main(int argc, char** argv)
     ui::apply_theme_style_only(chrome.theme_index);
     glfwSetWindowOpacity(app.window(), chrome.window_opacity);
 
-    ui::VaultPage vault(wallets_dir(), self_exe_path(), settings.active_wallet);
+    ui::VaultPage vault(wallets_dir(), ui::executable_dir() / "data",
+        self_exe_path(), settings.active_wallet);
 
     // A broken chain/token config takes down the portfolio pane, not
     // the wallet: the vault stays reachable and the error is shown.

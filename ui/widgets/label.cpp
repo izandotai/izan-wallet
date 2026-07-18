@@ -1,22 +1,24 @@
 #include "ui/widgets/label.hpp"
 
+#include <cstring>
+
 #include "ui/widgets/design.hpp"
 
 namespace izan::ui {
 
 float kit_title_size()
 {
-    return ImGui::GetFontSize() * design().title_scale;
+    return kit_snap(ImGui::GetFontSize() * design().title_scale);
 }
 
 float kit_heading_size()
 {
-    return ImGui::GetFontSize() * design().heading_scale;
+    return kit_snap(ImGui::GetFontSize() * design().heading_scale);
 }
 
 float kit_caption_size()
 {
-    return ImGui::GetFontSize() * design().caption_scale;
+    return kit_snap(ImGui::GetFontSize() * design().caption_scale);
 }
 
 void kit_title(const char* text)
@@ -43,6 +45,25 @@ void kit_caption(const char* text)
 void kit_vspace(float em)
 {
     ImGui::Dummy(ImVec2(0.0f, ImGui::GetFontSize() * em));
+}
+
+std::string kit_elide_middle(const char* text, float budget)
+{
+    if (ImGui::CalcTextSize(text).x <= budget)
+        return text;
+    const std::size_t len = std::strlen(text);
+    const std::size_t tail = len < 6 ? len : 6;
+    for (std::size_t head = len; head > 4; --head) {
+        std::string out(text, head);
+        out += "…";
+        out.append(text + len - tail, tail);
+        if (ImGui::CalcTextSize(out.c_str()).x <= budget)
+            return out;
+    }
+    std::string out(text, 4);
+    out += "…";
+    out.append(text + len - tail, tail);
+    return out;
 }
 
 }
