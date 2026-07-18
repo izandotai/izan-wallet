@@ -73,6 +73,12 @@
     "vault.kind.hd": "HD wallet",
     "vault.kind.key": "Private-key wallet",
     "vault.err.secret": "Not a valid recovery phrase or private key.",
+    "vault.detect": "Recognized as:",
+    "vault.detect.mnemonic": "Recovery phrase",
+    "vault.detect.key": "Private key",
+    "vault.detect.wif": "WIF private key",
+    "vault.detect.none": "Not recognized",
+    "wallet.preset": "Derivation:",
     "vault.warn.backup.key": "Anyone who knows this key can spend this wallet's funds. Never share it.",
     "wallet.account.add": "Derive new address"
 }

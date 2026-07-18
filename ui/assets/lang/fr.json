@@ -73,6 +73,12 @@
     "vault.kind.hd": "Portefeuille HD",
     "vault.kind.key": "Portefeuille à clé privée",
     "vault.err.secret": "Ni phrase de récupération ni clé privée valide.",
+    "vault.detect": "Reconnu comme :",
+    "vault.detect.mnemonic": "Phrase de récupération",
+    "vault.detect.key": "Clé privée",
+    "vault.detect.wif": "Clé privée WIF",
+    "vault.detect.none": "Non reconnu",
+    "wallet.preset": "Dérivation :",
     "vault.warn.backup.key": "Quiconque connaît cette clé peut dépenser les fonds de ce portefeuille. Ne la partagez jamais.",
     "wallet.account.add": "Dériver une nouvelle adresse"
 }

@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "core/crypto/secret_import.hpp"
 #include "core/secure/secure_bytes.hpp"
 #include "keyd/client.hpp"
 #include "ui/i18n/catalog.hpp"
@@ -59,6 +60,14 @@ public:
         return m_account_active;
     }
 
+    // The active wallet's derivation preset (keyd::DerivePreset value).
+    // It rides the proposal envelope so an imported mnemonic keeps
+    // speaking its home vendor's dialect.
+    uint8_t active_preset() const
+    {
+        return m_preset;
+    }
+
     // The live trust-plane handle, for pages that submit and approve
     // proposals; null until a keyd has been spawned. Ownership stays
     // here — pages borrow, never keep.
@@ -88,6 +97,8 @@ private:
 
     void draw_selector(const i18n::Catalog& tr);
     void draw_no_wallets(const i18n::Catalog& tr);
+    void enter_import_form();
+    void refresh_detect(); // re-classify the pasted secret on change
     void draw_create_form(const i18n::Catalog& tr);
     void draw_import_form(const i18n::Catalog& tr);
     void draw_show_secret(const i18n::Catalog& tr);
@@ -133,7 +144,15 @@ private:
     // so it travels with the wallet.
     uint32_t m_account_count = 1;
     uint32_t m_account_active = 0;
+    uint8_t m_preset = 0; // keyd::DerivePreset of the active wallet
     std::vector<std::string> m_account_addrs;
+    // Import-form recognition: what the pasted text is, plus address
+    // previews — three first addresses for a mnemonic (one per preset,
+    // clicking one selects it), a single address for a key or WIF.
+    crypto::SecretKind m_detect = crypto::SecretKind::Unrecognized;
+    std::array<std::string, 3> m_preset_addrs {};
+    std::string m_detect_addr;
+    uint8_t m_import_preset = 0;
     std::string m_status;           // last message key or verbatim error
     bool m_status_is_key = false;
 

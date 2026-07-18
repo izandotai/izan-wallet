@@ -73,6 +73,12 @@
     "vault.kind.hd": "HD-кошелёк",
     "vault.kind.key": "Кошелёк с приватным ключом",
     "vault.err.secret": "Это не фраза восстановления и не приватный ключ.",
+    "vault.detect": "Распознано как:",
+    "vault.detect.mnemonic": "Фраза восстановления",
+    "vault.detect.key": "Приватный ключ",
+    "vault.detect.wif": "Приватный ключ WIF",
+    "vault.detect.none": "Не распознано",
+    "wallet.preset": "Схема деривации:",
     "vault.warn.backup.key": "Любой, кто знает этот ключ, может распоряжаться средствами кошелька. Никому его не сообщайте.",
     "wallet.account.add": "Вывести новый адрес"
 }

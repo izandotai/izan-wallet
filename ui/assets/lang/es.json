@@ -73,6 +73,12 @@
     "vault.kind.hd": "Cartera HD",
     "vault.kind.key": "Cartera de clave privada",
     "vault.err.secret": "No es una frase de recuperación ni una clave privada válida.",
+    "vault.detect": "Reconocido como:",
+    "vault.detect.mnemonic": "Frase de recuperación",
+    "vault.detect.key": "Clave privada",
+    "vault.detect.wif": "Clave privada WIF",
+    "vault.detect.none": "No reconocido",
+    "wallet.preset": "Derivación:",
     "vault.warn.backup.key": "Cualquiera que conozca esta clave puede gastar los fondos de esta cartera. No la compartas nunca.",
     "wallet.account.add": "Derivar nueva dirección"
 }

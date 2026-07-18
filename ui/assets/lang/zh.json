@@ -73,6 +73,12 @@
     "vault.kind.hd": "HD 钱包",
     "vault.kind.key": "私钥钱包",
     "vault.err.secret": "不是有效的助记词或私钥。",
+    "vault.detect": "识别为：",
+    "vault.detect.mnemonic": "助记词",
+    "vault.detect.key": "私钥",
+    "vault.detect.wif": "WIF 私钥",
+    "vault.detect.none": "无法识别",
+    "wallet.preset": "派生方案：",
     "vault.warn.backup.key": "任何知道这个私钥的人都能动用该钱包的资产，绝不要泄露。",
     "wallet.account.add": "派生新地址"
 }

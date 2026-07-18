@@ -26,14 +26,20 @@ namespace {
     constexpr ImGuiInputTextFlags kSecretField
         = ImGuiInputTextFlags_Password | ImGuiInputTextFlags_AutoSelectAll;
 
-    // Sidecar beside each vault file (public data): the display name
-    // and the HD account line — how many accounts the user opened and
-    // which is selected.
+    // Sidecar beside each vault file (public data): the display name,
+    // the HD account line — how many accounts the user opened and
+    // which is selected — and the derivation preset chosen at import.
     struct AccountsMeta {
         std::string name;
         uint32_t count = 1;
         uint32_t active = 0;
+        uint8_t preset = 0;
     };
+
+    // Product names, not translatable text — a preset is the vendor
+    // whose paths it copies.
+    constexpr const char* kPresetNames[keyd::kDerivePresetCount]
+        = { "MetaMask", "Ledger Live", "Legacy MEW" };
 
     AccountsMeta read_meta_file(const std::filesystem::path& path)
     {
@@ -69,39 +75,23 @@ namespace {
         return text.substr(a, b - a + 1);
     }
 
-    // A raw secp256k1 key pasted as hex: optional 0x, then exactly 64
-    // hex digits, and not the zero scalar. (Whether it is a USABLE key
-    // is proven later by actually signing with it before the wallet is
-    // allowed to exist.)
-    std::optional<SecureBytes> parse_raw_key(std::string_view text)
+    // Builds the wallet a recognized secret describes: entropy for a
+    // mnemonic, a single imported key for hex or WIF. The import flow
+    // saves it; the recognition preview only borrows its addresses.
+    vault::Wallet wallet_of(
+        const crypto::DetectedSecret& hit, std::string_view text)
     {
-        std::string_view hex = trimmed(text);
-        if (hex.starts_with("0x") || hex.starts_with("0X"))
-            hex.remove_prefix(2);
-        if (hex.size() != 64)
-            return std::nullopt;
-        SecureBytes key(32);
-        bool nonzero = false;
-        for (int i = 0; i < 32; ++i) {
-            auto nib = [](char c) -> int {
-                if (c >= '0' && c <= '9')
-                    return c - '0';
-                if (c >= 'a' && c <= 'f')
-                    return c - 'a' + 10;
-                if (c >= 'A' && c <= 'F')
-                    return c - 'A' + 10;
-                return -1;
-            };
-            const int hi = nib(hex[std::size_t(2 * i)]);
-            const int lo = nib(hex[std::size_t(2 * i + 1)]);
-            if (hi < 0 || lo < 0)
-                return std::nullopt;
-            key.data()[i] = uint8_t(hi << 4 | lo);
-            nonzero = nonzero || key.data()[i];
+        vault::Wallet wallet;
+        if (hit.kind == crypto::SecretKind::Mnemonic) {
+            wallet.entropy = crypto::mnemonic_to_entropy(trimmed(text));
+        } else {
+            vault::Imported imp;
+            imp.label = "imported";
+            imp.key = SecureBytes(hit.key.size());
+            std::memcpy(imp.key.data(), hit.key.data(), hit.key.size());
+            wallet.imported.push_back(std::move(imp));
         }
-        if (!nonzero)
-            return std::nullopt;
-        return key;
+        return wallet;
     }
 
 }
@@ -197,12 +187,13 @@ void VaultPage::load_accounts_meta()
     m_active_name = meta.name.empty() ? m_active : meta.name;
     m_account_count = meta.count > 0 ? meta.count : 1;
     m_account_active = meta.active < m_account_count ? meta.active : 0;
+    m_preset = meta.preset < keyd::kDerivePresetCount ? meta.preset : 0;
 }
 
 void VaultPage::save_accounts_meta() const
 {
     write_meta_file(m_dir / (m_active + ".accounts.json"),
-        { m_active_name, m_account_count, m_account_active });
+        { m_active_name, m_account_count, m_account_active, m_preset });
 }
 
 void VaultPage::refresh_addresses()
@@ -210,7 +201,7 @@ void VaultPage::refresh_addresses()
     m_account_addrs.clear();
     if (!m_keyd)
         return;
-    auto first = m_keyd->address(0);
+    auto first = m_keyd->address(0, m_preset);
     if (!first) {
         m_account_addrs.push_back(m_keyd->last_error());
         return;
@@ -223,7 +214,7 @@ void VaultPage::refresh_addresses()
         return;
     }
     for (uint32_t i = 1; i < m_account_count; ++i) {
-        auto addr = m_keyd->address(i);
+        auto addr = m_keyd->address(i, m_preset);
         m_account_addrs.push_back(addr ? *addr : m_keyd->last_error());
     }
 }
@@ -370,11 +361,8 @@ void VaultPage::draw_selector(const i18n::Catalog& tr)
         m_mode = Mode::CreateForm;
     }
     ImGui::SameLine();
-    if (ImGui::Button(tr("vault.import"))) {
-        m_status.clear();
-        sodium_memzero(m_name.data(), m_name.size());
-        m_mode = Mode::ImportForm;
-    }
+    if (ImGui::Button(tr("vault.import")))
+        enter_import_form();
     if (m_unlocked && m_keyd) {
         ImGui::SameLine();
         ImGui::TextDisabled("%s",
@@ -395,9 +383,48 @@ void VaultPage::draw_no_wallets(const i18n::Catalog& tr)
         m_mode = Mode::CreateForm;
     }
     ImGui::SameLine();
-    if (ImGui::Button(tr("vault.import"))) {
-        m_status.clear();
-        m_mode = Mode::ImportForm;
+    if (ImGui::Button(tr("vault.import")))
+        enter_import_form();
+}
+
+void VaultPage::enter_import_form()
+{
+    m_status.clear();
+    sodium_memzero(m_name.data(), m_name.size());
+    sodium_memzero(m_mnemonic_in.data(), m_mnemonic_in.size());
+    m_detect = crypto::SecretKind::Unrecognized;
+    m_preset_addrs = {};
+    m_detect_addr.clear();
+    m_import_preset = 0;
+    m_mode = Mode::ImportForm;
+}
+
+void VaultPage::refresh_detect()
+{
+    const std::string_view text(m_mnemonic_in.data(),
+        strnlen(m_mnemonic_in.data(), m_mnemonic_in.size()));
+    const crypto::DetectedSecret hit = crypto::detect_secret(text);
+    m_detect = hit.kind;
+    m_preset_addrs = {};
+    m_detect_addr.clear();
+    if (hit.kind == crypto::SecretKind::Unrecognized)
+        return;
+    // Address previews, derived right here in the UI: the person sees
+    // where their money would live before anything touches disk. Runs
+    // only when the text changes — a paste, not every frame.
+    try {
+        const vault::Wallet probe = wallet_of(hit, text);
+        if (hit.kind == crypto::SecretKind::Mnemonic) {
+            for (uint8_t p = 0; p < keyd::kDerivePresetCount; ++p)
+                m_preset_addrs[p]
+                    = keyd::account_address(probe, 0, keyd::DerivePreset(p));
+        } else {
+            m_detect_addr = keyd::account_address(probe);
+        }
+    } catch (const std::exception&) {
+        // A secret that cannot even address itself is not that kind
+        // of secret.
+        m_detect = crypto::SecretKind::Unrecognized;
     }
 }
 
@@ -473,9 +500,50 @@ void VaultPage::draw_import_form(const i18n::Catalog& tr)
 {
     ImGui::InputText(tr("wallet.name"), m_name.data(), m_name.size());
     ImGui::TextUnformatted(tr("vault.secret_in"));
-    ImGui::InputTextMultiline("##secret-in", m_mnemonic_in.data(),
-        m_mnemonic_in.size(), ImVec2(-1.0f, ImGui::GetTextLineHeight() * 4));
+    if (ImGui::InputTextMultiline("##secret-in", m_mnemonic_in.data(),
+            m_mnemonic_in.size(),
+            ImVec2(-1.0f, ImGui::GetTextLineHeight() * 4)))
+        refresh_detect();
     m_secret_focus |= ImGui::IsItemActive();
+
+    // The recognition line: what the pasted text is, updated as it
+    // changes — nobody should have to press Import to find out.
+    ImGui::TextDisabled("%s", tr("vault.detect"));
+    ImGui::SameLine();
+    switch (m_detect) {
+    case crypto::SecretKind::Mnemonic:
+        ImGui::TextUnformatted(tr("vault.detect.mnemonic"));
+        break;
+    case crypto::SecretKind::RawKey:
+        ImGui::TextUnformatted(tr("vault.detect.key"));
+        break;
+    case crypto::SecretKind::Wif:
+        ImGui::TextUnformatted(tr("vault.detect.wif"));
+        break;
+    case crypto::SecretKind::Unrecognized:
+        ImGui::TextUnformatted(tr("vault.detect.none"));
+        break;
+    }
+    if (m_detect == crypto::SecretKind::Mnemonic) {
+        // One first address per derivation preset; picking the address
+        // picks the preset. At index 0 MetaMask and Ledger Live share
+        // a path, so two rows may show the same address — still two
+        // different wallets from account 1 on.
+        ImGui::TextDisabled("%s", tr("wallet.preset"));
+        for (uint8_t p = 0; p < keyd::kDerivePresetCount; ++p) {
+            ImGui::PushID(int(p));
+            if (ImGui::RadioButton("##preset", m_import_preset == p))
+                m_import_preset = p;
+            ImGui::SameLine();
+            ImGui::TextUnformatted(kPresetNames[p]);
+            ImGui::SameLine();
+            ImGui::TextDisabled("%s", m_preset_addrs[p].c_str());
+            ImGui::PopID();
+        }
+    } else if (!m_detect_addr.empty()) {
+        ImGui::TextDisabled("%s", m_detect_addr.c_str());
+    }
+
     ImGui::InputText(
         tr("vault.passphrase"), m_pass.data(), m_pass.size(), kSecretField);
     m_secret_focus |= ImGui::IsItemActive();
@@ -493,20 +561,15 @@ void VaultPage::draw_import_form(const i18n::Catalog& tr)
             strnlen(m_mnemonic_in.data(), m_mnemonic_in.size()));
 
         // Content decides what this is: a valid BIP-39 sentence makes
-        // a seed wallet, 64 hex digits make a key wallet, anything
-        // else is refused — never guessed at.
+        // a seed wallet, 64 hex digits or a WIF string make a key
+        // wallet, anything else is refused — never guessed at.
+        const crypto::DetectedSecret hit = crypto::detect_secret(text);
+        const bool recognized = hit.kind != crypto::SecretKind::Unrecognized;
         vault::Wallet wallet;
-        bool recognized = false;
-        if (crypto::mnemonic_valid(text)) {
-            wallet.entropy = crypto::mnemonic_to_entropy(text);
-            recognized = true;
-        } else if (auto key = parse_raw_key(text)) {
-            vault::Imported imp;
-            imp.label = "imported";
-            imp.key = std::move(*key);
-            wallet.imported.push_back(std::move(imp));
-            recognized = true;
-        }
+        if (recognized)
+            wallet = wallet_of(hit, text);
+        const uint8_t preset
+            = hit.kind == crypto::SecretKind::Mnemonic ? m_import_preset : 0;
 
         if (!valid_new_name(name)) {
             m_status = "wallet.err.name";
@@ -533,18 +596,20 @@ void VaultPage::draw_import_form(const i18n::Catalog& tr)
             job->next = Mode::Locked;
             job->wallet = id;
             m_job = job;
-            std::thread([job, pass = std::move(pass), name,
+            std::thread([job, pass = std::move(pass), name, preset,
                             wallet = std::move(wallet), path = wallet_path(id),
                             metaPath
                             = m_dir / (id + ".accounts.json")]() mutable {
                 try {
-                    // Prove the wallet can actually sign before it is
-                    // allowed to exist — this is where an out-of-range
-                    // key or a broken seed fails, loudly and early.
+                    // Prove the wallet can actually sign — on the very
+                    // path the chosen preset will use — before it is
+                    // allowed to exist; an out-of-range key or a broken
+                    // seed fails here, loudly and early.
                     const std::vector<uint8_t> probe { 0x69 };
-                    (void)keyd::sign_payload(wallet, probe);
+                    (void)keyd::sign_payload(
+                        wallet, probe, 0, keyd::DerivePreset(preset));
                     vault::save(path, pass, wallet, vault::kdf_sensitive());
-                    write_meta_file(metaPath, { name, 1, 0 });
+                    write_meta_file(metaPath, { name, 1, 0, preset });
                     job->phase.store(1);
                 } catch (const std::exception& e) {
                     job->error = e.what();
@@ -632,6 +697,11 @@ void VaultPage::draw_unlocked(const i18n::Catalog& tr)
     // is what it is.
     const bool hd
         = m_keyd && m_keyd->wallet_kind() == keyd::RevealKind::SeedEntropy;
+    if (hd) {
+        ImGui::TextDisabled("%s", tr("wallet.preset"));
+        ImGui::SameLine();
+        ImGui::TextUnformatted(kPresetNames[m_preset]);
+    }
     ImGui::TextDisabled("%s", tr("vault.address"));
     for (uint32_t i = 0; i < m_account_addrs.size(); ++i) {
         ImGui::PushID(int(i));
@@ -651,7 +721,7 @@ void VaultPage::draw_unlocked(const i18n::Catalog& tr)
     if (hd && ImGui::Button(tr("wallet.account.add"))) {
         ++m_account_count;
         save_accounts_meta();
-        auto addr = m_keyd->address(m_account_count - 1);
+        auto addr = m_keyd->address(m_account_count - 1, m_preset);
         m_account_addrs.push_back(addr ? *addr : m_keyd->last_error());
     }
     ImGui::Spacing();

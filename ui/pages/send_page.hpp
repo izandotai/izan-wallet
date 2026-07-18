@@ -82,6 +82,7 @@ private:
     tx::Eip1559Tx m_tx;
     std::string m_from;
     uint32_t m_account = 0; // captured at review, rides the envelope
+    uint8_t m_preset = 0;   // derivation preset, captured with the account
     std::string m_to_checked;
     uint64_t m_proposal = 0;
 

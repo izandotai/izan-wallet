@@ -220,11 +220,13 @@ void SendPage::draw_form(const i18n::Catalog& tr)
         if (m_status.empty()) {
             // The sender address is a quick keyd round trip; fetch it
             // on this thread so the job never touches keyd while form
-            // buttons are alive. The account index is captured here —
-            // the quote, the envelope and the signature all speak for
-            // the same identity even if the selection changes later.
+            // buttons are alive. Account index and derivation preset
+            // are captured here — the quote, the envelope and the
+            // signature all speak for the same identity even if the
+            // selection changes later.
             m_account = m_vault.active_account();
-            auto from = m_vault.keyd()->address(m_account);
+            m_preset = m_vault.active_preset();
+            auto from = m_vault.keyd()->address(m_account, m_preset);
             if (!from) {
                 m_status = m_vault.keyd()->last_error();
                 m_status_is_key = false;
@@ -284,9 +286,10 @@ void SendPage::draw_review(const i18n::Catalog& tr)
     if (ImGui::Button(tr("send.confirm"))) {
         std::optional<uint64_t> id;
         if (m_vault.keyd()) {
-            // Envelope v1: the account index travels inside the queued
-            // bytes, so what the human approves is what signs.
-            std::vector<uint8_t> payload { keyd::kEnvelopeV1,
+            // Envelope v2: preset and account index travel inside the
+            // queued bytes, so the identity the human approves — down
+            // to its derivation dialect — is the identity that signs.
+            std::vector<uint8_t> payload { keyd::kEnvelopeV2, m_preset,
                 uint8_t(m_account), uint8_t(m_account >> 8),
                 uint8_t(m_account >> 16), uint8_t(m_account >> 24) };
             const std::vector<uint8_t> body = tx::signing_payload(m_tx);

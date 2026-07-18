@@ -167,6 +167,7 @@ add_library(izan_crypto STATIC
     core/crypto/btc.cpp
     core/crypto/eth.cpp
     core/crypto/hd.cpp
+    core/crypto/secret_import.cpp
     core/crypto/sol.cpp
 )
 target_include_directories(izan_crypto PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -324,6 +325,7 @@ add_executable(izan_tests
     tests/i18n_test.cpp
     tests/tx_test.cpp
     tests/txflow_test.cpp
+    tests/import_test.cpp
     tests/keyd_test.cpp
     tests/linkbits_test.cpp
     tests/proposals_test.cpp
