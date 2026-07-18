@@ -45,6 +45,12 @@ struct DesignLanguage {
     float dialog_glyph = 2.0f;  // dialog emoji icon
     float lock_avatar = 3.0f;   // the lock screen's centerpiece
 
+    // -- buttons --
+    // Shape and finish are tokens, not code: flip these to restyle
+    // every button in the app at once.
+    bool button_pill = true;    // capsule ends (full-round sides)
+    float button_gloss = 0.55f; // 0..1 metallic top-light overlay
+
     // -- material & light --
     float group_elevation_dark = 0.045f; // card bg lift toward text
     float group_elevation_light = 0.03f;

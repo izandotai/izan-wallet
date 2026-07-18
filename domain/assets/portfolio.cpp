@@ -34,7 +34,8 @@ std::vector<Holding> PortfolioReader::snapshot(std::string_view address)
         Holding native { .chain_id = chain.chain_id,
             .chain = chain.name,
             .symbol = chain.symbol,
-            .decimals = chain.decimals };
+            .decimals = chain.decimals,
+            .testnet = chain.testnet };
         try {
             native.amount = native_balance(*client, addr);
             native.ok = true;
@@ -48,7 +49,8 @@ std::vector<Holding> PortfolioReader::snapshot(std::string_view address)
                 .chain = chain.name,
                 .symbol = token->symbol,
                 .token = token->address,
-                .decimals = token->decimals };
+                .decimals = token->decimals,
+                .testnet = chain.testnet };
             try {
                 row.amount = erc20_balance(*client, token->address, addr);
                 row.ok = true;

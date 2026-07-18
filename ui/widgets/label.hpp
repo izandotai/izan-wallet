@@ -29,4 +29,9 @@ std::string kit_elide_middle(
 std::string kit_elide_end(
     const char* text, float budget, float font_size = 0.0f);
 
+// A caption that never breaks its column: end-elided to the budget,
+// with the full text served as a tooltip when shortened — raw error
+// strings from other machines get long, and long must stay readable.
+void kit_caption_fit(const char* text, float budget);
+
 }

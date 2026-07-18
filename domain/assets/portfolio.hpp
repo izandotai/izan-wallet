@@ -19,13 +19,14 @@ namespace izan::assets {
 // like "unreadable", never like "empty".
 struct Holding {
     uint64_t chain_id {};
-    std::string chain; // display name
+    std::string chain;    // display name
     std::string symbol;
-    std::string token; // contract address, empty = native coin
+    std::string token;    // contract address, empty = native coin
     uint8_t decimals {};
+    bool testnet = false; // test money never gets a fiat figure
     units::U256 amount;
     bool ok = false;
-    std::string error; // set when !ok
+    std::string error;    // set when !ok
 };
 
 // Reads native + configured token balances for an address across every

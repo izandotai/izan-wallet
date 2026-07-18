@@ -58,6 +58,7 @@
         "name": "Sepolia (testnet)",
         "symbol": "ETH",
         "decimals": 18,
+        "testnet": true,
         "rpc": [
             "https://ethereum-sepolia-rpc.publicnode.com",
             "https://sepolia.drpc.org"

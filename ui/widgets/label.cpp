@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "ui/widgets/design.hpp"
+#include "ui/widgets/tooltip.hpp"
 
 namespace izan::ui {
 
@@ -105,6 +106,16 @@ std::string kit_elide_end(const char* text, float budget, float font_size)
             return out;
     }
     return "…";
+}
+
+void kit_caption_fit(const char* text, float budget)
+{
+    ImGui::PushFont(nullptr, kit_caption_size());
+    const std::string shown = kit_elide_end(text, budget, kit_caption_size());
+    ImGui::TextDisabled("%s", shown.c_str());
+    if (shown != text && ImGui::IsItemHovered())
+        kit_tooltip(text);
+    ImGui::PopFont();
 }
 
 }

@@ -16,6 +16,7 @@ struct ChainSpec {
     uint8_t decimals = 18;        // native currency decimals
     std::vector<std::string> rpc; // endpoints in priority order
     std::string explorer;         // base URL, empty = none
+    bool testnet = false;         // test money: never priced in fiat
 };
 
 class ChainRegistry {

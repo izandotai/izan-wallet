@@ -80,42 +80,42 @@ void PortfolioPage::refresh(const std::string& address)
                 row.chain = h.chain;
                 row.symbol = h.symbol;
                 row.ok = h.ok;
+                row.testnet = h.testnet;
                 if (h.ok)
                     row.amount = units::format_units(h.amount, h.decimals);
                 else
                     row.error = h.error;
                 job->rows.push_back(std::move(row));
             }
-            // Fiat is garnish over the on-chain numbers: a price feed
-            // failure leaves the dollar column empty and says nothing.
+            // Per-row fiat is garnish over the on-chain numbers: a
+            // price feed failure leaves the dollar column empty and
+            // says nothing. Testnet rows never get a figure — test
+            // money priced as real money is a lie — and no total is
+            // computed at all: every dollar shown is independently
+            // checkable against its own row.
             try {
                 std::vector<std::string> ids;
                 for (const Row& row : job->rows) {
                     const std::string id = assets::coingecko_id(row.symbol);
-                    if (row.ok && !id.empty()
+                    if (row.ok && !row.testnet && !id.empty()
                         && std::find(ids.begin(), ids.end(), id) == ids.end())
                         ids.push_back(id);
                 }
                 const auto prices = assets::fetch_usd_prices(ids);
-                double total = 0.0;
-                bool any = false;
                 for (Row& row : job->rows) {
-                    const std::string id = assets::coingecko_id(row.symbol);
-                    const auto hit = prices.find(id);
-                    if (!row.ok || hit == prices.end())
+                    if (!row.ok || row.testnet)
+                        continue;
+                    const auto hit
+                        = prices.find(assets::coingecko_id(row.symbol));
+                    if (hit == prices.end())
                         continue;
                     double amount = 0.0;
                     const auto [end, ec] = std::from_chars(row.amount.data(),
                         row.amount.data() + row.amount.size(), amount);
                     if (ec != std::errc())
                         continue;
-                    const double worth = amount * hit->second;
-                    row.fiat = format_usd(worth);
-                    total += worth;
-                    any = true;
+                    row.fiat = format_usd(amount * hit->second);
                 }
-                if (any)
-                    job->total = format_usd(total);
             } catch (const std::exception&) {
             }
             job->phase.store(1);
@@ -132,7 +132,6 @@ void PortfolioPage::draw(const i18n::Catalog& tr)
         const int phase = m_job->phase.load();
         if (phase == 1) {
             m_rows = std::move(m_job->rows);
-            m_total = std::move(m_job->total);
             m_fetched_at = ImGui::GetTime();
             m_status.clear();
             m_job.reset();
@@ -165,51 +164,44 @@ void PortfolioPage::draw(const i18n::Catalog& tr)
     if (mine != m_followed) {
         m_followed = mine;
         m_rows.clear();
-        m_total.clear();
         m_status.clear();
         m_fetched_at = 0.0;
         refresh(mine);
     }
 
-    // Who, then the one number that matters: identity stacked on the
-    // center axis, total worth as the hero line.
-    if (!m_vault.active_name().empty()) {
+    // Identity belongs to an unlocked wallet only — a locked page has
+    // nothing to introduce, so it shows the empty state alone.
+    if (!mine.empty()) {
         kit_vspace(0.5f);
-        kit_identity(m_vault.active_name().c_str(),
-            mine.empty() ? nullptr : mine.c_str(),
-            m_total.empty() ? nullptr : m_total.c_str());
+        kit_identity(m_vault.active_name().c_str(), mine.c_str());
     }
 
-    // Control line, centered under the identity: refresh with the age
-    // of the numbers beside it.
+    // Controls under the identity, each on its own centered line.
     kit_vspace(0.25f);
+    auto centered_x = [&](float item_w) {
+        const float slack = avail - item_w;
+        if (slack > 0.0f)
+            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + slack * 0.5f);
+    };
     if (busy) {
-        const float r = em * 0.55f;
-        ImGui::SetCursorPosX(
-            ImGui::GetCursorPosX() + (avail - r * 2.0f) * 0.5f);
+        centered_x(em * 1.1f);
         kit_spinner(0.55f);
     } else if (!m_followed.empty()) {
-        char ago[32] = "";
+        centered_x(ImGui::CalcTextSize(tr("portfolio.refresh")).x
+            + ImGui::GetStyle().FramePadding.x * 2.0f);
+        if (kit_link_button(tr("portfolio.refresh")))
+            refresh(m_followed);
         if (m_fetched_at > 0.0) {
             const int age = int(ImGui::GetTime() - m_fetched_at);
+            char ago[32];
             if (age < 60)
                 std::snprintf(ago, sizeof ago, "%ds", age);
             else
                 std::snprintf(ago, sizeof ago, "%dm", age / 60);
-        }
-        const float line_w = ImGui::CalcTextSize(tr("portfolio.refresh")).x
-            + ImGui::GetStyle().FramePadding.x * 2.0f
-            + (*ago ? ImGui::CalcTextSize(ago).x
-                        + ImGui::GetStyle().ItemSpacing.x
-                    : 0.0f);
-        const float slack = avail - line_w;
-        if (slack > 0.0f)
-            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + slack * 0.5f);
-        if (kit_link_button(tr("portfolio.refresh")))
-            refresh(m_followed);
-        if (*ago) {
-            ImGui::SameLine();
-            kit_caption(ago);
+            ImGui::PushFont(nullptr, kit_caption_size());
+            centered_x(ImGui::CalcTextSize(ago).x);
+            ImGui::TextDisabled("%s", ago);
+            ImGui::PopFont();
         }
     }
 

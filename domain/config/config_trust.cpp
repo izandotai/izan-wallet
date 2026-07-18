@@ -20,7 +20,7 @@ namespace {
     // table cannot silently rot.
     constexpr Shipped kShipped[] = {
         { "chains.json",
-            "0cf8a6bb4239677fcf41ede0d9f41e7c00a7ca568874779d139cb518cecca82"
+            "345f821d02f49c7e017b90027ff854f98a5890029417dd8b5d15a33c1a6ed9b"
             "a" },
         { "tokens.json",
             "21f58e7e7970823239a9a201d3f999b11cf8da9b4d15a87e567066e56b3b63"

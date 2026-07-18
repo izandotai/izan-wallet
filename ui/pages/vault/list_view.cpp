@@ -75,8 +75,11 @@ WalletListView::Event WalletListView::draw(const i18n::Catalog& tr, bool busy,
     // New and Import live at the bottom of the pane, stacked full
     // width — side by side they overflow a narrow sidebar — with the
     // accent fill marking the primary of the pair.
-    const float footer
-        = ImGui::GetFrameHeight() * 2.0f + ImGui::GetStyle().ItemSpacing.y;
+    // Two buttons, the gap between them, and the gap the spacer item
+    // itself adds — undercounting that last one pushes the import
+    // button into the window edge and clips it shorter.
+    const float footer = ImGui::GetFrameHeight() * 2.0f
+        + ImGui::GetStyle().ItemSpacing.y * 2.0f;
     const float slack = ImGui::GetContentRegionAvail().y - footer;
     if (slack > 0.0f)
         ImGui::Dummy(ImVec2(0.0f, slack));
