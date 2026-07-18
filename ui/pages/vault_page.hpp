@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "core/secure/secure_bytes.hpp"
@@ -126,6 +127,7 @@ private:
 
     std::string m_status; // message key or verbatim error
     bool m_status_is_key = false;
+    std::optional<Mode> m_pending_mode; // applied at the next frame's top
     std::shared_ptr<Job> m_job;
     bool m_ime_disabled = false;
     bool m_secret_focus = false; // a secret field is active this frame

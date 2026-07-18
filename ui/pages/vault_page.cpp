@@ -61,7 +61,11 @@ void VaultPage::set_status(const char* key)
 void VaultPage::enter(Mode mode)
 {
     m_status.clear();
-    m_mode = mode;
+    // Screen changes land at the top of the NEXT frame. The selector
+    // row is drawn before the mode switch; flipping the mode between
+    // them would stack the old and new screens in one frame — a
+    // visible blink every time a selector button opens a form.
+    m_pending_mode = mode;
 }
 
 void VaultPage::poll_job()
@@ -109,6 +113,10 @@ void VaultPage::poll_job()
 void VaultPage::draw(GLFWwindow* window, const i18n::Catalog& tr)
 {
     poll_job();
+    if (m_pending_mode) {
+        m_mode = *m_pending_mode;
+        m_pending_mode.reset();
+    }
 
     ImGui::Begin((std::string(tr("vault.title")) + "###vault-page").c_str());
 
