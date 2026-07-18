@@ -13,6 +13,7 @@
 #include <glaze/glaze.hpp>
 
 #include <imgui.h>
+#include <imgui_internal.h> // DockBuilder: the first-run layout
 
 #include <GLFW/glfw3.h>
 
@@ -285,7 +286,56 @@ int main(int argc, char** argv)
                 | ImGuiWindowFlags_NoBringToFrontOnFocus
                 | ImGuiWindowFlags_NoSavedSettings);
         const ImGuiID dockspace = ImGui::GetID("izan-dockspace");
-        ui::dock_guard_prepass(dockspace, ImGui::GetContentRegionAvail());
+        const ImVec2 dock_size = ImGui::GetContentRegionAvail();
+        // First run only (no saved layout): lay the workbench out the
+        // way hands expect it — wallets in a narrow left column, the
+        // vault detail center stage, assets and send stacked right.
+        // Every run after this belongs to the user's own arrangement.
+        // Built on the second frame: the windows must have submitted
+        // once or their empty dock nodes collapse before they arrive.
+        static int dock_frame = 0;
+        if (dock_frame < 2 && ++dock_frame == 2) {
+            if (settings.layout.empty()) {
+                ImGui::DockBuilderRemoveNode(dockspace);
+                ImGui::DockBuilderAddNode(
+                    dockspace, ImGuiDockNodeFlags_DockSpace);
+                ImGui::DockBuilderSetNodeSize(dockspace, dock_size);
+                ImGuiID center = dockspace;
+                const ImGuiID left = ImGui::DockBuilderSplitNode(
+                    center, ImGuiDir_Left, 0.20f, nullptr, &center);
+                ImGuiID right = ImGui::DockBuilderSplitNode(
+                    center, ImGuiDir_Right, 0.32f, nullptr, &center);
+                const ImGuiID right_bottom = ImGui::DockBuilderSplitNode(
+                    right, ImGuiDir_Down, 0.5f, nullptr, &right);
+                ImGui::DockBuilderDockWindow("###wallet-list", left);
+                ImGui::DockBuilderDockWindow("###vault-page", center);
+                ImGui::DockBuilderDockWindow("###portfolio-page", right);
+                ImGui::DockBuilderDockWindow("###send-page", right_bottom);
+                ImGui::DockBuilderFinish(dockspace);
+            }
+        }
+        static int dump_frame = 0;
+        ++dump_frame;
+        if ((dump_frame == 3 || dump_frame == 240)
+            && std::getenv("IZAN_DOCK_DUMP")) {
+            std::ofstream dump(
+                dump_frame == 3 ? "izan-dock-dump.txt" : "izan-dock-dump2.txt");
+            for (ImGuiWindow* w : ImGui::GetCurrentContext()->Windows)
+                dump << w->Name << " id=" << w->ID << " dock=" << w->DockId
+                     << " active=" << int(w->WasActive) << " pos=" << w->Pos.x
+                     << "," << w->Pos.y << " size=" << w->Size.x << "x"
+                     << w->Size.y << "\n";
+            for (ImGuiID nid : { dockspace, ImGuiID(5), ImGuiID(6) }) {
+                ImGuiDockNode* n = ImGui::DockBuilderGetNode(nid);
+                dump << "node " << nid << (n ? " alive" : " GONE");
+                if (n)
+                    dump << " pos=" << n->Pos.x << "," << n->Pos.y
+                         << " size=" << n->Size.x << "x" << n->Size.y
+                         << " windows=" << n->Windows.Size;
+                dump << "\n";
+            }
+        }
+        ui::dock_guard_prepass(dockspace, dock_size);
         ImGui::DockSpace(
             dockspace, ImVec2(0, 0), ImGuiDockNodeFlags_PassthruCentralNode);
         ui::dock_splitter_dblclick_reset(dockspace);

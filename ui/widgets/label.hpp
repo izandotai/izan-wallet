@@ -24,4 +24,9 @@ void kit_vspace(float em = 0.5f);   // vertical breath between blocks
 std::string kit_elide_middle(
     const char* text, float budget, float font_size = 0.0f);
 
+// End elision for names and titles: keep the head, drop the tail.
+// UTF-8 aware — cuts only on codepoint boundaries, CJK-safe.
+std::string kit_elide_end(
+    const char* text, float budget, float font_size = 0.0f);
+
 }

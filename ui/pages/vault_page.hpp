@@ -82,11 +82,11 @@ public:
     }
 
 private:
+    // Create lives in a dialog and the root-secret reveal in another;
+    // the mode machine only tracks what fills the detail window.
     enum class Mode {
         NoWallets,
-        CreateForm,
         ImportForm,
-        ShowSecret, // after create or backup
         Locked,
         Unlocked,
     };
@@ -132,6 +132,7 @@ private:
     std::string m_status;               // message key or verbatim error
     bool m_status_is_key = false;
     std::optional<Mode> m_pending_mode; // applied at the next frame's top
+    bool m_open_create = false;         // arm the create dialog
     std::shared_ptr<Job> m_job;
 
     // Native balances for the account line, fetched in the background

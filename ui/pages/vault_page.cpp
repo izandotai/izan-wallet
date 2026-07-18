@@ -95,7 +95,9 @@ void VaultPage::poll_job()
         }
         m_mode = m_job->next;
         m_session.mark_unlocked(m_mode == Mode::Unlocked);
-        if (m_mode == Mode::ShowSecret)
+        // A root secret (fresh phrase, backup reveal) arms its dialog —
+        // after switch_active, which resets the view it rides in.
+        if (!m_job->secret.empty())
             m_secret.show(std::move(m_job->secret), m_job->secret_kind);
         if (m_mode == Mode::Unlocked) {
             // The addresses, fetched once per unlock: the first thing
@@ -161,55 +163,47 @@ void VaultPage::draw(GLFWwindow* window, const i18n::Catalog& tr)
         m_pending_mode.reset();
     }
 
-    ImGui::Begin((std::string(tr("vault.title")) + "###vault-page").c_str());
-
     m_secret_focus = false; // the secret inputs below re-mark it
     const bool busy = m_job != nullptr;
-
-    // The workbench: wallet cards on the left in a slightly recessed
-    // pane, the active wallet's screen on the right with generous
-    // padding. List events are applied after both panes have drawn —
-    // a screen must never change mid-frame.
     const DesignLanguage& dl = design();
     const float em = ImGui::GetFontSize();
-    {
-        const ImVec4 bg = ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
-        const float k = dl.sidebar_recess;
-        ImGui::PushStyleColor(
-            ImGuiCol_ChildBg, ImVec4(bg.x * k, bg.y * k, bg.z * k, 1.0f));
-    }
+
+    // Two dock windows, not two panes: the wallet list keeps its own
+    // narrow column and the detail screen gets real width wherever the
+    // person docks it. List events are applied after both windows have
+    // drawn — a screen must never change mid-frame.
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
         ImVec2(em * dl.sidebar_pad, em * dl.sidebar_pad));
-    ImGui::BeginChild("##wallet-cards", ImVec2(em * dl.sidebar_width, 0.0f),
-        ImGuiChildFlags_AlwaysUseWindowPadding);
+    ImGui::Begin((std::string(tr("wallet.list")) + "###wallet-list").c_str());
+    ImGui::PopStyleVar();
     const WalletListView::Event lev
         = m_list.draw(tr, busy, m_store, m_active, m_session.unlocked());
-    ImGui::EndChild();
-    ImGui::PopStyleVar();
-    ImGui::PopStyleColor();
-    ImGui::SameLine();
+    ImGui::End();
+
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
         ImVec2(em * dl.pane_pad_x, em * dl.pane_pad_y));
-    ImGui::BeginChild("##wallet-detail", ImVec2(0.0f, 0.0f),
-        ImGuiChildFlags_AlwaysUseWindowPadding);
+    ImGui::Begin((std::string(tr("vault.title")) + "###vault-page").c_str());
     ImGui::PopStyleVar();
 
     if (m_mode == Mode::Unlocked) {
         // The header: who this wallet is, and what it is, at a glance.
         const float avatar = em * dl.header_avatar;
         const ImVec2 head = ImGui::GetCursorScreenPos();
+        const float text_left = head.x + avatar + em * 0.55f;
+        const float avail_w
+            = ImGui::GetContentRegionAvail().x - avatar - em * 0.55f;
         kit_avatar_at(head, m_active_name.c_str(), avatar);
-        ImGui::SetCursorScreenPos(
-            ImVec2(head.x + avatar + em * 0.55f, head.y - em * 0.1f));
-        kit_title(m_active_name.c_str());
-        ImGui::SetCursorScreenPos(
-            ImVec2(head.x + avatar + em * 0.55f, head.y + em * 1.35f));
+        ImGui::SetCursorScreenPos(ImVec2(text_left, head.y - em * 0.1f));
+        kit_title(
+            kit_elide_end(m_active_name.c_str(), avail_w, kit_title_size())
+                .c_str());
+        ImGui::SetCursorScreenPos(ImVec2(text_left, head.y + em * 1.35f));
         const char* badge = kind_badge_key(m_meta.kind);
         if (*badge) {
             kit_pill(tr(badge), kit_accent());
             ImGui::SameLine();
         }
-        if (m_meta.kind == kKindHd) {
+        if (m_meta.kind == kKindHd && avail_w > em * 12.0f) {
             kit_pill(preset_name(keyd::DerivePreset(m_meta.preset)),
                 ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
             ImGui::SameLine();
@@ -222,15 +216,8 @@ void VaultPage::draw(GLFWwindow* window, const i18n::Catalog& tr)
     case Mode::NoWallets:
         kit_empty_state("👛", m_store.dir().string().c_str());
         break;
-    case Mode::CreateForm:
-        start_create(m_create.draw(tr, busy, m_secret_focus, m_store));
-        break;
     case Mode::ImportForm:
         start_import(m_import.draw(tr, busy, m_secret_focus, m_store));
-        break;
-    case Mode::ShowSecret:
-        if (m_secret.draw(tr))
-            enter(Mode::Locked);
         break;
     case Mode::Locked: {
         UnlockView::Event ev
@@ -250,13 +237,22 @@ void VaultPage::draw(GLFWwindow* window, const i18n::Catalog& tr)
         break;
     }
 
+    // Dialog flows hosted by the detail window: create, and the
+    // root-secret reveal that follows a create or a backup.
+    if (m_open_create) {
+        kit_dialog_open("##create-wallet");
+        m_open_create = false;
+    }
+    start_create(m_create.draw_dialog(tr, busy, m_secret_focus, m_store));
+    m_secret.draw_dialog(tr);
+
     if (!m_status.empty()) {
         ImGui::Spacing();
         ImGui::TextWrapped(
             "%s", m_status_is_key ? tr(m_status.c_str()) : m_status.c_str());
     }
 
-    ImGui::EndChild();
+    ImGui::End();
 
     handle_list(lev);
 
@@ -268,8 +264,6 @@ void VaultPage::draw(GLFWwindow* window, const i18n::Catalog& tr)
         set_ime_enabled(window, !m_secret_focus);
         m_ime_disabled = m_secret_focus;
     }
-
-    ImGui::End();
 }
 
 void VaultPage::fetch_balances()
@@ -322,7 +316,7 @@ void VaultPage::handle_list(WalletListView::Event ev)
         break;
     case WalletListView::Event::Type::Create:
         m_create.reset();
-        enter(Mode::CreateForm);
+        m_open_create = true;
         break;
     case WalletListView::Event::Type::Import:
         m_import.reset();
@@ -370,21 +364,13 @@ void VaultPage::handle_list(WalletListView::Event ev)
 
 void VaultPage::start_create(CreateView::Event ev)
 {
-    if (ev.err) {
-        set_status(ev.err);
-        return;
-    }
-    if (ev.type == CreateView::Event::Type::Back) {
-        enter(m_store.empty() ? Mode::NoWallets : Mode::Locked);
-        return;
-    }
     if (ev.type != CreateView::Event::Type::Submit)
         return;
 
     set_status("vault.busy.creating");
     const std::string id = WalletStore::mint_id(ev.name);
     auto job = std::make_shared<Job>();
-    job->next = Mode::ShowSecret;
+    job->next = Mode::Locked;
     job->wallet = id;
     m_job = job;
     std::thread([job, pass = std::move(ev.pass), name = std::move(ev.name),
@@ -480,7 +466,7 @@ void VaultPage::start_backup(SecureBytes pass)
     }
     m_status.clear();
     auto job = std::make_shared<Job>();
-    job->next = Mode::ShowSecret;
+    job->next = Mode::Unlocked;
     m_job = job;
     keyd::KeydClient* keyd = m_session.client();
     std::thread([job, keyd, pass = std::move(pass)]() mutable {

@@ -28,9 +28,6 @@ WalletListView::Event WalletListView::draw(const i18n::Catalog& tr, bool busy,
     ImGui::BeginDisabled(busy);
 
     const float em = ImGui::GetFontSize();
-    kit_caption(tr("wallet.list"));
-    kit_vspace(0.2f);
-
     for (const WalletEntry& w : store.wallets()) {
         ImGui::PushID(w.id.c_str());
         const bool is_active = w.id == active_id;

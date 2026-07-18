@@ -14,63 +14,67 @@ void CreateView::reset()
     sodium_memzero(m_name.data(), m_name.size());
     sodium_memzero(m_pass.data(), m_pass.size());
     sodium_memzero(m_confirm.data(), m_confirm.size());
+    m_err = nullptr;
     m_focus_pending = true;
 }
 
-CreateView::Event CreateView::draw(const i18n::Catalog& tr, bool busy,
+CreateView::Event CreateView::draw_dialog(const i18n::Catalog& tr, bool busy,
     bool& secret_focus, const WalletStore& store)
 {
     Event ev;
-    const float em = ImGui::GetFontSize();
-    const float avail = ImGui::GetContentRegionAvail().x;
-    const float col
-        = em * design().form_width < avail ? em * design().form_width : avail;
+    bool dismissed = false;
+    if (!kit_dialog_begin("##create-wallet", &dismissed))
+        return ev;
+    if (dismissed)
+        reset();
 
-    kit_title(tr("vault.create"));
-    kit_vspace(0.5f);
-
-    ImGui::SetNextItemWidth(col);
+    kit_dialog_header_icon("✳", tr("vault.create"));
+    kit_dialog_field_width();
     if (m_focus_pending && !busy) {
         kit_focus_here();
         m_focus_pending = false;
     }
     kit_text_field("##name", tr("wallet.name"), m_name.data(), m_name.size());
-    ImGui::SetNextItemWidth(col);
+    kit_dialog_field_width();
     secret_field("##pass", m_pass, secret_focus, tr("vault.passphrase"));
-    ImGui::SetNextItemWidth(col);
+    kit_dialog_field_width();
     bool submit = secret_field(
         "##confirm", m_confirm, secret_focus, tr("vault.passphrase.confirm"));
-    kit_vspace(0.5f);
+
+    if (m_err) {
+        ImGui::PushFont(nullptr, kit_caption_size());
+        ImGui::TextColored(kit_danger(), "%s", tr(m_err));
+        ImGui::PopFont();
+    }
 
     ImGui::BeginDisabled(busy);
-    if (kit_subtle_button(tr("ui.back"))) {
+    const int choice = kit_dialog_buttons(tr("ui.cancel"), tr("vault.create"));
+    ImGui::EndDisabled();
+    submit |= choice == 2;
+
+    if (choice == 1) {
         reset();
-        ev.type = Event::Type::Back;
-    }
-    ImGui::SameLine();
-    submit |= kit_primary_button(tr("vault.create"));
-    if (submit) {
+        kit_dialog_close();
+    } else if (submit && !busy) {
         const std::string name(
             m_name.data(), strnlen(m_name.data(), m_name.size()));
         if (!store.valid_new_name(name)) {
-            ev.err = "wallet.err.name";
+            m_err = "wallet.err.name";
         } else if (strnlen(m_pass.data(), m_pass.size()) == 0) {
-            ev.err = "vault.msg.empty_pass";
+            m_err = "vault.msg.empty_pass";
         } else if (std::strncmp(m_pass.data(), m_confirm.data(), m_pass.size())
             != 0) {
-            ev.err = "vault.msg.mismatch";
+            m_err = "vault.msg.mismatch";
         } else {
             ev.type = Event::Type::Submit;
             ev.name = name;
             ev.pass = take_secret(m_pass);
             sodium_memzero(m_confirm.data(), m_confirm.size());
+            m_err = nullptr;
+            kit_dialog_close();
         }
     }
-    ImGui::EndDisabled();
-    if (busy) {
-        kit_vspace(0.25f);
-        ImGui::TextDisabled("%s", tr("vault.busy.creating"));
-    }
+    kit_dialog_end();
     return ev;
 }
 

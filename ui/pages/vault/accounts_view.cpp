@@ -37,6 +37,13 @@ AccountsView::Event AccountsView::draw(const i18n::Catalog& tr, bool busy,
         m_labels.resize(addresses.size());
 
     kit_group_begin("##accounts");
+    // The note column is the elastic one: it shrinks before the
+    // address does, and steps aside entirely when the pane is too
+    // narrow to hold both.
+    const float row_avail = ImGui::GetContentRegionAvail().x;
+    const float spare = row_avail - em * (3.2f + 2.6f + 2.2f + 4.0f);
+    const float note_w = spare > em * 6.0f ? em * 6.0f : spare;
+    const bool show_note = note_w >= em * 2.5f;
     for (uint32_t i = 0; i < addresses.size(); ++i) {
         ImGui::PushID(int(i));
         if (i > 0)
@@ -55,15 +62,17 @@ AccountsView::Event AccountsView::draw(const i18n::Catalog& tr, bool busy,
         ImGui::Text("#%u", i);
         ImGui::PopFont();
 
-        ImGui::SameLine(em * 3.2f);
-        ImGui::SetNextItemWidth(em * 6.0f);
-        kit_text_field("##note", tr("wallet.note"), m_labels[i].data(),
-            m_labels[i].size());
-        if (ImGui::IsItemDeactivatedAfterEdit()) {
-            ev.type = Event::Type::LabelEdit;
-            ev.index = i;
-            ev.label = std::string(m_labels[i].data(),
-                strnlen(m_labels[i].data(), m_labels[i].size()));
+        if (show_note) {
+            ImGui::SameLine(em * 3.2f);
+            ImGui::SetNextItemWidth(note_w);
+            kit_text_field("##note", tr("wallet.note"), m_labels[i].data(),
+                m_labels[i].size());
+            if (ImGui::IsItemDeactivatedAfterEdit()) {
+                ev.type = Event::Type::LabelEdit;
+                ev.index = i;
+                ev.label = std::string(m_labels[i].data(),
+                    strnlen(m_labels[i].data(), m_labels[i].size()));
+            }
         }
 
         // Balance (when known), then the address right-aligned with
