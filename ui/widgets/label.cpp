@@ -76,10 +76,16 @@ std::string kit_elide_middle(const char* text, float budget, float font_size)
         if (measure(out.c_str()) <= budget)
             return out;
     }
-    std::string out(text, 4);
-    out += "…";
-    out.append(text + len - tail, tail);
-    return out;
+    // Even the minimal head-and-tail pair overflows: degrade to a
+    // shrinking head, and to a bare ellipsis at the bitter end — the
+    // component never draws wider than its slot.
+    for (std::size_t head = 4; head > 0; --head) {
+        std::string out(text, head);
+        out += "…";
+        if (measure(out.c_str()) <= budget)
+            return out;
+    }
+    return "…";
 }
 
 std::string kit_elide_end(const char* text, float budget, float font_size)

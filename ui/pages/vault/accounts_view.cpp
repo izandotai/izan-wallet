@@ -44,6 +44,9 @@ AccountsView::Event AccountsView::draw(const i18n::Catalog& tr, bool busy,
     const float spare = row_avail - em * (3.2f + 2.6f + 2.2f + 4.0f);
     const float note_w = spare > em * 6.0f ? em * 6.0f : spare;
     const bool show_note = note_w >= em * 2.5f;
+    // The balance is garnish and the first thing to go when the pane
+    // tightens; the address and its QR never leave.
+    const bool show_balance = row_avail >= em * 15.0f;
     for (uint32_t i = 0; i < addresses.size(); ++i) {
         ImGui::PushID(int(i));
         if (i > 0)
@@ -77,7 +80,8 @@ AccountsView::Event AccountsView::draw(const i18n::Catalog& tr, bool busy,
 
         // Balance (when known), then the address right-aligned with
         // room reserved for the QR button, then the button itself.
-        if (i < balances.size() && !balances[std::size_t(i)].empty()) {
+        if (show_balance && i < balances.size()
+            && !balances[std::size_t(i)].empty()) {
             ImGui::SameLine();
             ImGui::PushFont(nullptr, kit_caption_size());
             ImGui::TextDisabled("%s", balances[std::size_t(i)].c_str());
