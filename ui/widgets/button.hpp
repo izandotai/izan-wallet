@@ -20,4 +20,10 @@ bool kit_link_button(const char* label);
 // wider than the label.
 float kit_button_width(const char* label, float width = 0.0f);
 
+// A square icon button bearing a hand-drawn plus — the compact door
+// for "add" where a labelled capsule would crowd the line. A font's
+// own "+" sits low and drifts with the face; a drawn cross centers
+// exactly. Defaults to frame height, level with an input beside it.
+bool kit_add_button(const char* id, float side = 0.0f);
+
 }

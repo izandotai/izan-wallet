@@ -51,7 +51,7 @@ WalletListView::Event WalletListView::draw(const i18n::Catalog& tr, bool busy,
     kit_text_field(
         "##filter", tr("wallet.filter"), m_filter.data(), m_filter.size());
     ImGui::SameLine();
-    if (kit_primary_button("+", add_w))
+    if (kit_add_button("##add", add_w))
         ImGui::OpenPopup("##add-menu");
     if (kit_menu_begin("##add-menu")) {
         if (kit_menu_item(tr("vault.create")))

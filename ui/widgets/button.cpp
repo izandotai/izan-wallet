@@ -121,6 +121,43 @@ float kit_button_width(const char* label, float width)
     return resolved_width(label, width);
 }
 
+bool kit_add_button(const char* id, float side)
+{
+    if (side <= 0.0f)
+        side = ImGui::GetFrameHeight();
+    const ImVec2 pos = ImGui::GetCursorScreenPos();
+    const bool clicked = ImGui::InvisibleButton(id, ImVec2(side, side));
+    const bool hovered = ImGui::IsItemHovered();
+    const bool held = ImGui::IsItemActive();
+    if (hovered)
+        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+
+    ImVec4 accent = kit_accent();
+    accent.w = 1.0f;
+    const ImVec4 fill = held ? kit_blend(accent, ImVec4(0, 0, 0, 1), 0.12f)
+        : hovered            ? kit_blend(accent, ImVec4(1, 1, 1, 1), 0.12f)
+                             : accent;
+    const float rounding
+        = design().button_pill ? side * 0.5f : ImGui::GetStyle().FrameRounding;
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+    draw->AddRectFilled(pos, ImVec2(pos.x + side, pos.y + side),
+        ImGui::GetColorU32(fill), rounding);
+    paint_gloss(rounding);
+
+    // The cross: two snapped strokes through the true center, arms
+    // sized to the square — the glyph the label font never gets right.
+    const float cx = kit_snap(pos.x + side * 0.5f);
+    const float cy = kit_snap(pos.y + side * 0.5f);
+    const float arm = side * 0.21f;
+    float t = side * 0.085f;
+    if (t < 1.6f)
+        t = 1.6f;
+    const ImU32 ink = IM_COL32(255, 255, 255, 245);
+    draw->AddLine(ImVec2(cx - arm, cy), ImVec2(cx + arm, cy), ink, t);
+    draw->AddLine(ImVec2(cx, cy - arm), ImVec2(cx, cy + arm), ink, t);
+    return clicked;
+}
+
 bool kit_link_button(const char* label)
 {
     ImGui::PushStyleColor(ImGuiCol_Text, kit_accent());

@@ -3,6 +3,7 @@
 #include <string>
 
 #include <imgui.h>
+#include <imgui_internal.h>
 
 #include "ui/widgets/avatar.hpp"
 #include "ui/widgets/design.hpp"
@@ -17,7 +18,12 @@ bool kit_list_row(const char* id, const char* title, const char* subtitle,
     const float em = ImGui::GetFontSize();
     const float row_h = em * dl.list_row_height;
     const ImVec2 pos = ImGui::GetCursorScreenPos();
-    const float row_w = ImGui::GetContentRegionAvail().x;
+    float row_w = ImGui::GetContentRegionAvail().x;
+    // A scrolling host parks its bar flush against the content edge;
+    // the row gives back a breath so the state dot and the bar never
+    // touch. No bar, no debt.
+    if (ImGui::GetCurrentWindowRead()->ScrollbarY)
+        row_w -= em * 0.5f;
     const bool clicked = ImGui::InvisibleButton(id, ImVec2(row_w, row_h));
     const bool hovered = ImGui::IsItemHovered();
 

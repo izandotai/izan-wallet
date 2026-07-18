@@ -131,6 +131,8 @@ void draw_kit_gallery()
     kit_danger_button("危险");
     ImGui::SameLine();
     kit_link_button("链接动作");
+    ImGui::SameLine();
+    kit_add_button("##add-demo");
     kit_group_end();
     kit_vspace();
 
