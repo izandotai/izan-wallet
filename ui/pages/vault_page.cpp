@@ -91,12 +91,37 @@ void VaultPage::poll_job()
             // a person needs from an unlocked wallet.
             const uint32_t actual
                 = m_session.refresh_addresses(m_meta.count, m_meta.preset);
+            bool dirty = false;
             if (actual != m_meta.count) {
                 m_meta.count = actual;
                 if (m_meta.active >= actual)
                     m_meta.active = 0;
-                m_store.write_meta(m_active, m_meta);
+                dirty = true;
             }
+            // Self-heal the kind badge: keyd just told us what this
+            // wallet really is; legacy sidecars learn it here.
+            if (m_session.client()) {
+                const char* kind = kKindSecp;
+                switch (m_session.client()->wallet_kind()) {
+                case keyd::RevealKind::SeedEntropy:
+                    kind = kKindHd;
+                    break;
+                case keyd::RevealKind::Ed25519Key:
+                    kind = kKindEd25519;
+                    break;
+                case keyd::RevealKind::PrivateKey:
+                    break;
+                }
+                if (m_meta.kind != kind) {
+                    m_meta.kind = kind;
+                    dirty = true;
+                }
+            }
+            if (dirty) {
+                m_store.write_meta(m_active, m_meta);
+                m_store.rescan(); // the card face shows kind and count
+            }
+            m_accounts.set_labels(m_meta.labels, actual);
         }
     } else if (m_job->error.find("passphrase") != std::string::npos) {
         // Known trust-plane refusals ("bad passphrase", "wrong
@@ -124,22 +149,30 @@ void VaultPage::draw(GLFWwindow* window, const i18n::Catalog& tr)
     m_secret_focus = false; // the secret inputs below re-mark it
     const bool busy = m_job != nullptr;
 
-    if (m_mode == Mode::Locked || m_mode == Mode::Unlocked)
-        draw_selector(tr);
+    // The workbench: wallet cards on the left, the active wallet's
+    // screen on the right. List events are applied after both panes
+    // have drawn — a screen must never change mid-frame.
+    ImGui::BeginChild("##wallet-cards",
+        ImVec2(ImGui::GetFontSize() * 13.0f, 0.0f), ImGuiChildFlags_Borders);
+    const WalletListView::Event lev
+        = m_list.draw(tr, busy, m_store, m_active, m_session.unlocked());
+    ImGui::EndChild();
+    ImGui::SameLine();
+    ImGui::BeginChild("##wallet-detail", ImVec2(0.0f, 0.0f));
+
+    if (m_mode == Mode::Locked || m_mode == Mode::Unlocked) {
+        ImGui::TextUnformatted(m_active_name.c_str());
+        const char* badge = kind_badge_key(m_meta.kind);
+        if (*badge) {
+            ImGui::SameLine();
+            ImGui::TextDisabled("%s", tr(badge));
+        }
+        ImGui::Separator();
+    }
 
     switch (m_mode) {
     case Mode::NoWallets:
         ImGui::TextDisabled("%s", m_store.dir().string().c_str());
-        ImGui::Spacing();
-        if (ImGui::Button(tr("vault.create"))) {
-            m_create.reset();
-            enter(Mode::CreateForm);
-        }
-        ImGui::SameLine();
-        if (ImGui::Button(tr("vault.import"))) {
-            m_import.reset();
-            enter(Mode::ImportForm);
-        }
         break;
     case Mode::CreateForm:
         start_create(m_create.draw(tr, busy, m_secret_focus, m_store));
@@ -175,6 +208,10 @@ void VaultPage::draw(GLFWwindow* window, const i18n::Catalog& tr)
             "%s", m_status_is_key ? tr(m_status.c_str()) : m_status.c_str());
     }
 
+    ImGui::EndChild();
+
+    handle_list(lev);
+
     // Secret fields and the IME cannot coexist: composition strings
     // are cached outside the process. Field-level, not mode-level:
     // only passphrase/secret inputs mark the frame — the wallet name
@@ -187,40 +224,58 @@ void VaultPage::draw(GLFWwindow* window, const i18n::Catalog& tr)
     ImGui::End();
 }
 
-void VaultPage::draw_selector(const i18n::Catalog& tr)
+void VaultPage::handle_list(WalletListView::Event ev)
 {
-    const bool busy = m_job != nullptr;
-    ImGui::BeginDisabled(busy);
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 12.0f);
-    if (ImGui::BeginCombo(tr("wallet.list"), m_active_name.c_str())) {
-        for (const WalletEntry& w : m_store.wallets()) {
-            ImGui::PushID(w.id.c_str());
-            if (ImGui::Selectable(w.name.c_str(), w.id == m_active)
-                && w.id != m_active)
-                switch_active(w.id);
-            ImGui::PopID();
-        }
-        ImGui::EndCombo();
-    }
-    ImGui::SameLine();
-    if (ImGui::Button(tr("vault.create"))) {
+    switch (ev.type) {
+    case WalletListView::Event::Type::Activate:
+        switch_active(ev.id);
+        break;
+    case WalletListView::Event::Type::Create:
         m_create.reset();
         enter(Mode::CreateForm);
-    }
-    ImGui::SameLine();
-    if (ImGui::Button(tr("vault.import"))) {
+        break;
+    case WalletListView::Event::Type::Import:
         m_import.reset();
         enter(Mode::ImportForm);
+        break;
+    case WalletListView::Event::Type::Rename: {
+        std::string current;
+        for (const WalletEntry& w : m_store.wallets())
+            if (w.id == ev.id)
+                current = w.name;
+        if (ev.name == current)
+            break;
+        if (!m_store.valid_new_name(ev.name)) {
+            set_status("wallet.err.name");
+            break;
+        }
+        AccountsMeta meta = m_store.read_meta(ev.id);
+        meta.name = ev.name;
+        m_store.write_meta(ev.id, meta);
+        m_store.rescan();
+        if (ev.id == m_active) {
+            m_meta.name = ev.name;
+            m_active_name = ev.name;
+        }
+        break;
     }
-    if (m_session.unlocked() && m_session.client()) {
-        ImGui::SameLine();
-        ImGui::TextDisabled("%s",
-            m_session.client()->wallet_kind() == keyd::RevealKind::SeedEntropy
-                ? tr("vault.kind.hd")
-                : tr("vault.kind.key"));
+    case WalletListView::Event::Type::Delete:
+        m_store.delete_wallet(ev.id);
+        if (ev.id == m_active) {
+            if (m_store.empty()) {
+                m_session.teardown();
+                m_active.clear();
+                m_active_name.clear();
+                m_meta = {};
+                enter(Mode::NoWallets);
+            } else {
+                switch_active(m_store.first_id());
+            }
+        }
+        break;
+    case WalletListView::Event::Type::None:
+        break;
     }
-    ImGui::EndDisabled();
-    ImGui::Separator();
 }
 
 void VaultPage::start_create(CreateView::Event ev)
@@ -250,7 +305,7 @@ void VaultPage::start_create(CreateView::Event ev)
             wallet.entropy = SecureBytes(16);
             randombytes_buf(wallet.entropy.data(), wallet.entropy.size());
             vault::save(path, pass, wallet, vault::kdf_sensitive());
-            store->write_meta(id, { name, 1, 0, 0 });
+            store->write_meta(id, { name, 1, 0, 0, kKindHd, {} });
             job->secret = crypto::entropy_to_mnemonic(wallet.entropy);
             job->phase.store(1);
         } catch (const std::exception& e) {
@@ -275,18 +330,22 @@ void VaultPage::start_import(ImportView::Event ev)
 
     set_status("vault.busy.creating");
     const std::string id = WalletStore::mint_id(ev.name);
+    const char* kind = !ev.wallet->entropy.empty() ? kKindHd
+        : ev.wallet->imported.front().label == keyd::kEd25519KeyLabel
+        ? kKindEd25519
+        : kKindSecp;
     auto job = std::make_shared<Job>();
     job->next = Mode::Locked;
     job->wallet = id;
     m_job = job;
     std::thread([job, pass = std::move(ev.pass), name = std::move(ev.name),
-                    wallet = std::move(*ev.wallet), preset = ev.preset,
+                    wallet = std::move(*ev.wallet), preset = ev.preset, kind,
                     path = m_store.vault_path(id), store = &m_store,
                     id]() mutable {
         try {
             prove_wallet(wallet, keyd::DerivePreset(preset));
             vault::save(path, pass, wallet, vault::kdf_sensitive());
-            store->write_meta(id, { name, 1, 0, preset });
+            store->write_meta(id, { name, 1, 0, preset, kind, {} });
             job->phase.store(1);
         } catch (const std::exception& e) {
             job->error = e.what();
@@ -380,7 +439,14 @@ void VaultPage::handle_accounts(AccountsView::Event ev)
     case AccountsView::Event::Type::Add:
         ++m_meta.count;
         m_store.write_meta(m_active, m_meta);
+        m_store.rescan(); // the card face shows the count
         m_session.push_address(m_meta.count - 1, m_meta.preset);
+        break;
+    case AccountsView::Event::Type::LabelEdit:
+        if (ev.index >= m_meta.labels.size())
+            m_meta.labels.resize(ev.index + 1);
+        m_meta.labels[ev.index] = std::move(ev.label);
+        m_store.write_meta(m_active, m_meta);
         break;
     case AccountsView::Event::Type::Lock:
         if (m_session.client() && m_session.client()->lock()) {

@@ -81,6 +81,15 @@
     "vault.detect.none": "Not recognized",
     "wallet.preset": "Derivation:",
     "send.err.family": "This wallet receives on its own chain; sending is EVM-only for now.",
+    "vault.kind.ed25519": "Solana-key wallet",
+    "wallet.activate": "Activate",
+    "wallet.rename": "Rename",
+    "wallet.delete": "Delete",
+    "wallet.delete.warn": "This permanently destroys the wallet file on this computer. Only a backup can bring the keys back.",
+    "wallet.delete.confirm": "Type the wallet name to confirm",
+    "wallet.note": "Note",
+    "ui.continue": "Continue",
+    "ui.cancel": "Cancel",
     "vault.warn.backup.key": "Anyone who knows this key can spend this wallet's funds. Never share it.",
     "wallet.account.add": "Derive new address"
 }

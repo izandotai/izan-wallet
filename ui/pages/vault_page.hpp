@@ -13,6 +13,7 @@
 #include "ui/pages/vault/accounts_view.hpp"
 #include "ui/pages/vault/create_view.hpp"
 #include "ui/pages/vault/import_view.hpp"
+#include "ui/pages/vault/list_view.hpp"
 #include "ui/pages/vault/secret_view.hpp"
 #include "ui/pages/vault/unlock_view.hpp"
 #include "ui/wallet/session.hpp"
@@ -98,7 +99,6 @@ private:
         std::string wallet;           // non-empty: newly created, activate it
     };
 
-    void draw_selector(const i18n::Catalog& tr);
     void poll_job();
     void switch_active(const std::string& id);
     void set_status(const char* key); // i18n key
@@ -109,6 +109,7 @@ private:
     void start_unlock(secure::SecureBytes pass);
     void start_backup(secure::SecureBytes pass);
     void handle_accounts(AccountsView::Event ev);
+    void handle_list(WalletListView::Event ev);
 
     WalletStore m_store;
     KeydSession m_session;
@@ -119,18 +120,19 @@ private:
     AccountsMeta m_meta;
     Mode m_mode = Mode::NoWallets;
 
+    WalletListView m_list;
     CreateView m_create;
     ImportView m_import;
     UnlockView m_unlock;
     AccountsView m_accounts;
     SecretView m_secret;
 
-    std::string m_status; // message key or verbatim error
+    std::string m_status;               // message key or verbatim error
     bool m_status_is_key = false;
     std::optional<Mode> m_pending_mode; // applied at the next frame's top
     std::shared_ptr<Job> m_job;
     bool m_ime_disabled = false;
-    bool m_secret_focus = false; // a secret field is active this frame
+    bool m_secret_focus = false;        // a secret field is active this frame
 };
 
 }

@@ -12,10 +12,12 @@
 
 namespace izan::ui {
 
-// The import wizard's face: paste box with a live recognition line,
-// one address preview per preset the secret can wear (picking the
-// address picks the preset), then name and passphrase. The ImportModel
-// does the thinking; this class only draws it and owns the buffers.
+// The import wizard's face, two steps: first the paste box with a live
+// recognition line and one address preview per preset the secret can
+// wear (picking the address picks the preset), then — only after the
+// person has SEEN where their money would live — the name and
+// passphrase. The ImportModel does the thinking; this class only draws
+// it and owns the buffers.
 class ImportView {
 public:
     struct Event {
@@ -33,7 +35,10 @@ public:
         const WalletStore& store);
 
 private:
+    enum class Step { Paste, Confirm };
+
     ImportModel m_model;
+    Step m_step = Step::Paste;
     std::array<char, 64> m_name {};
     std::array<char, 1024> m_secret_in {};
     std::array<char, 256> m_pass {};

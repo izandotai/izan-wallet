@@ -66,6 +66,35 @@ TEST_CASE("the store lists wallets and round-trips their sidecars")
     CHECK(meta.count == 3);
     CHECK(meta.active == 2);
     CHECK(meta.preset == 5);
+
+    // Kind badge and per-account notes ride the same sidecar.
+    store.write_meta(id, { "老干妈", 3, 2, 5, ui::kKindHd, { "冷钱包", "" } });
+    const ui::AccountsMeta noted = store.read_meta(id);
+    CHECK(noted.kind == ui::kKindHd);
+    REQUIRE(noted.labels.size() == 2);
+    CHECK(noted.labels[0] == "冷钱包");
+}
+
+TEST_CASE("deleting a wallet leaves nothing on disk")
+{
+    TempDir tmp;
+    ui::WalletStore store(tmp.path);
+    const std::string id = ui::WalletStore::mint_id("doomed");
+    touch_vault(store, id);
+    store.write_meta(id, { "doomed", 1, 0, 0 });
+    // A stale audit ledger goes with it.
+    {
+        std::ofstream a(store.vault_path(id) + ".audit");
+        a << "x";
+    }
+    store.rescan();
+    REQUIRE(store.known(id));
+
+    store.delete_wallet(id);
+    CHECK(!store.known(id));
+    CHECK(!std::filesystem::exists(store.vault_path(id)));
+    CHECK(!std::filesystem::exists(store.meta_path(id)));
+    CHECK(!std::filesystem::exists(store.vault_path(id) + ".audit"));
 }
 
 TEST_CASE("a hand-edited sidecar cannot smuggle bad indices in")

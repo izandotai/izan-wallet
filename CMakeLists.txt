@@ -312,6 +312,7 @@ if(IZAN_BUILD_UI AND WIN32)
         ui/pages/vault/accounts_view.cpp
         ui/pages/vault/create_view.cpp
         ui/pages/vault/import_view.cpp
+        ui/pages/vault/list_view.cpp
         ui/pages/vault/secret_view.cpp
         ui/pages/vault/unlock_view.cpp
         ui/widgets/secret_field.cpp

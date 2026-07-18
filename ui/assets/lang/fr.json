@@ -81,6 +81,15 @@
     "vault.detect.none": "Non reconnu",
     "wallet.preset": "Dérivation :",
     "send.err.family": "Ce portefeuille reçoit sur sa propre chaîne ; l'envoi est pour l'instant réservé aux EVM.",
+    "vault.kind.ed25519": "Portefeuille à clé Solana",
+    "wallet.activate": "Activer",
+    "wallet.rename": "Renommer",
+    "wallet.delete": "Supprimer",
+    "wallet.delete.warn": "Cette action détruit définitivement le fichier du portefeuille sur cet ordinateur. Seule une sauvegarde peut restaurer les clés.",
+    "wallet.delete.confirm": "Saisissez le nom du portefeuille pour confirmer",
+    "wallet.note": "Note",
+    "ui.continue": "Continuer",
+    "ui.cancel": "Annuler",
     "vault.warn.backup.key": "Quiconque connaît cette clé peut dépenser les fonds de ce portefeuille. Ne la partagez jamais.",
     "wallet.account.add": "Dériver une nouvelle adresse"
 }

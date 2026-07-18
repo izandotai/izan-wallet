@@ -81,6 +81,15 @@
     "vault.detect.none": "No reconocido",
     "wallet.preset": "Derivación:",
     "send.err.family": "Esta cartera recibe en su propia cadena; el envío por ahora es solo EVM.",
+    "vault.kind.ed25519": "Cartera de clave Solana",
+    "wallet.activate": "Activar",
+    "wallet.rename": "Renombrar",
+    "wallet.delete": "Eliminar",
+    "wallet.delete.warn": "Esto destruye permanentemente el archivo de la cartera en este equipo. Solo una copia de seguridad puede recuperar las claves.",
+    "wallet.delete.confirm": "Escriba el nombre de la cartera para confirmar",
+    "wallet.note": "Nota",
+    "ui.continue": "Continuar",
+    "ui.cancel": "Cancelar",
     "vault.warn.backup.key": "Cualquiera que conozca esta clave puede gastar los fondos de esta cartera. No la compartas nunca.",
     "wallet.account.add": "Derivar nueva dirección"
 }

@@ -81,6 +81,15 @@
     "vault.detect.none": "Non riconosciuto",
     "wallet.preset": "Derivazione:",
     "send.err.family": "Questo portafoglio riceve sulla propria catena; l'invio per ora è solo EVM.",
+    "vault.kind.ed25519": "Portafoglio a chiave Solana",
+    "wallet.activate": "Attiva",
+    "wallet.rename": "Rinomina",
+    "wallet.delete": "Elimina",
+    "wallet.delete.warn": "Questa operazione distrugge definitivamente il file del portafoglio su questo computer. Solo un backup può recuperare le chiavi.",
+    "wallet.delete.confirm": "Digita il nome del portafoglio per confermare",
+    "wallet.note": "Nota",
+    "ui.continue": "Continua",
+    "ui.cancel": "Annulla",
     "vault.warn.backup.key": "Chiunque conosca questa chiave può spendere i fondi di questo portafoglio. Non condividerla mai.",
     "wallet.account.add": "Deriva nuovo indirizzo"
 }

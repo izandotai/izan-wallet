@@ -8,23 +8,37 @@
 
 namespace izan::ui {
 
+// What kind of root secret a wallet holds, recorded in the sidecar so
+// the card list can badge wallets without unlocking them. Display data
+// only — the trust plane decides from the vault itself.
+inline constexpr const char* kKindHd = "hd";
+inline constexpr const char* kKindSecp = "secp";
+inline constexpr const char* kKindEd25519 = "ed25519";
+
 // Sidecar beside each vault file (public data): the display name, the
-// HD account line — how many accounts the user opened and which is
-// selected — and the derivation preset chosen at import.
+// HD account line — how many accounts the user opened, which is
+// selected, and a note per account — plus the derivation preset chosen
+// at import and the wallet-kind badge.
 struct AccountsMeta {
     std::string name;
     uint32_t count = 1;
     uint32_t active = 0;
     uint8_t preset = 0;
+    std::string kind;                // kKind*; empty on legacy sidecars
+    std::vector<std::string> labels; // per-account notes, index-aligned
 };
 
 // A wallet's display name is anything the user likes, in any script;
 // its FILE name is a 16-hex id minted once at creation (sha-256 of
 // name plus random salt) — filesystem-safe forever, stable across
-// renames, collision-free across equal names.
+// renames, collision-free across equal names. Kind and count are the
+// sidecar's card-face data, cached at rescan so drawing a list never
+// touches the disk.
 struct WalletEntry {
     std::string id;
     std::string name;
+    std::string kind;
+    uint32_t count = 1;
 };
 
 // The wallet directory: one .qvlt per wallet with its accounts.json
@@ -65,6 +79,12 @@ public:
     // Anything printable up to 48 bytes, no control characters, not a
     // duplicate of a wallet already listed.
     bool valid_new_name(std::string_view display) const;
+
+    // Destroys a wallet: the vault file is shredded (overwritten, then
+    // deleted), the sidecar and audit ledger removed, the list
+    // rescanned. The keys are gone unless a backup exists — callers
+    // confirm with the human first.
+    void delete_wallet(const std::string& id);
 
     static std::string mint_id(std::string_view display);
 

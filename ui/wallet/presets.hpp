@@ -1,6 +1,7 @@
 #pragma once
 
 #include <span>
+#include <string_view>
 
 #include "core/crypto/secret_import.hpp"
 #include "keyd/signer.hpp"
@@ -18,5 +19,9 @@ std::span<const keyd::DerivePreset> presets_for(crypto::SecretKind kind);
 
 // The preset a freshly recognized secret starts on.
 keyd::DerivePreset default_preset(crypto::SecretKind kind);
+
+// The i18n key for a sidecar kind badge (store.hpp kKind*); empty
+// string for a legacy sidecar that never recorded one.
+const char* kind_badge_key(std::string_view kind);
 
 }

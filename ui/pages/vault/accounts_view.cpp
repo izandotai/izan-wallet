@@ -10,9 +10,32 @@
 
 namespace izan::ui {
 
+namespace {
+
+    // 0x1234567…abcdef — enough of each end to recognize, hover for
+    // the whole thing.
+    std::string shortened(const std::string& addr)
+    {
+        if (addr.size() <= 20)
+            return addr;
+        return addr.substr(0, 10) + "…" + addr.substr(addr.size() - 6);
+    }
+
+}
+
 void AccountsView::reset()
 {
     sodium_memzero(m_pass.data(), m_pass.size());
+    m_labels.clear();
+}
+
+void AccountsView::set_labels(
+    std::span<const std::string> labels, std::size_t count)
+{
+    m_labels.assign(count, {});
+    for (std::size_t i = 0; i < count && i < labels.size(); ++i)
+        std::memcpy(m_labels[i].data(), labels[i].data(),
+            std::min(labels[i].size(), m_labels[i].size() - 1));
 }
 
 AccountsView::Event AccountsView::draw(const i18n::Catalog& tr, bool busy,
@@ -34,6 +57,8 @@ AccountsView::Event AccountsView::draw(const i18n::Catalog& tr, bool busy,
     }
 
     ImGui::TextDisabled("%s", tr("vault.address"));
+    if (m_labels.size() < addresses.size())
+        m_labels.resize(addresses.size());
     for (uint32_t i = 0; i < addresses.size(); ++i) {
         ImGui::PushID(int(i));
         const bool selected = i == active;
@@ -42,11 +67,24 @@ AccountsView::Event AccountsView::draw(const i18n::Catalog& tr, bool busy,
             ev.index = i;
         }
         ImGui::SameLine();
-        ImGui::TextUnformatted(addresses[std::size_t(i)].c_str());
+        ImGui::Text("#%u", i);
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(ImGui::GetFontSize() * 6.0f);
+        ImGui::InputTextWithHint("##note", tr("wallet.note"),
+            m_labels[i].data(), m_labels[i].size());
+        if (ImGui::IsItemDeactivatedAfterEdit()) {
+            ev.type = Event::Type::LabelEdit;
+            ev.index = i;
+            ev.label = std::string(m_labels[i].data(),
+                strnlen(m_labels[i].data(), m_labels[i].size()));
+        }
+        ImGui::SameLine();
+        const std::string& full = addresses[std::size_t(i)];
+        ImGui::TextUnformatted(shortened(full).c_str());
         if (ImGui::IsItemClicked())
-            ImGui::SetClipboardText(addresses[std::size_t(i)].c_str());
+            ImGui::SetClipboardText(full.c_str());
         if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("%s", tr("ui.copy"));
+            ImGui::SetTooltip("%s\n%s", full.c_str(), tr("ui.copy"));
         ImGui::PopID();
     }
     if (hd && ImGui::Button(tr("wallet.account.add")))

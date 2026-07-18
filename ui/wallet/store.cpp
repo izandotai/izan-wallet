@@ -11,6 +11,7 @@ extern "C" {
 #include <sha2.h>
 }
 
+#include "core/secure/vault.hpp"
 #include "keyd/signer.hpp"
 
 namespace izan::ui {
@@ -33,7 +34,8 @@ void WalletStore::rescan()
         const std::string id = entry.path().stem().string();
         const AccountsMeta meta = read_meta(id);
         // Pre-sidecar wallets (the migrated "main") display their id.
-        m_wallets.push_back({ id, meta.name.empty() ? id : meta.name });
+        m_wallets.push_back(
+            { id, meta.name.empty() ? id : meta.name, meta.kind, meta.count });
     }
     std::sort(m_wallets.begin(), m_wallets.end(),
         [](const WalletEntry& a, const WalletEntry& b) {
@@ -91,6 +93,15 @@ void WalletStore::write_meta(
         return;
     std::ofstream f(meta_path(id), std::ios::binary | std::ios::trunc);
     f << out;
+}
+
+void WalletStore::delete_wallet(const std::string& id)
+{
+    vault::shred(vault_path(id));
+    std::error_code ec;
+    std::filesystem::remove(meta_path(id), ec);
+    std::filesystem::remove(m_dir / (id + ".qvlt.audit"), ec);
+    rescan();
 }
 
 bool WalletStore::valid_new_name(std::string_view display) const

@@ -81,6 +81,15 @@
     "vault.detect.none": "无法识别",
     "wallet.preset": "派生方案：",
     "send.err.family": "该钱包在其所属链上收款；发送目前仅支持 EVM。",
+    "vault.kind.ed25519": "Solana 私钥钱包",
+    "wallet.activate": "激活",
+    "wallet.rename": "重命名",
+    "wallet.delete": "删除",
+    "wallet.delete.warn": "此操作将永久销毁本机上的钱包文件，只有备份能找回密钥。",
+    "wallet.delete.confirm": "输入钱包名称以确认",
+    "wallet.note": "备注",
+    "ui.continue": "继续",
+    "ui.cancel": "取消",
     "vault.warn.backup.key": "任何知道这个私钥的人都能动用该钱包的资产，绝不要泄露。",
     "wallet.account.add": "派生新地址"
 }

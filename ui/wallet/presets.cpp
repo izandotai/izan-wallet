@@ -1,6 +1,19 @@
 #include "ui/wallet/presets.hpp"
 
+#include "ui/wallet/store.hpp"
+
 namespace izan::ui {
+
+const char* kind_badge_key(std::string_view kind)
+{
+    if (kind == kKindHd)
+        return "vault.kind.hd";
+    if (kind == kKindSecp)
+        return "vault.kind.key";
+    if (kind == kKindEd25519)
+        return "vault.kind.ed25519";
+    return "";
+}
 
 const char* preset_name(keyd::DerivePreset preset)
 {
