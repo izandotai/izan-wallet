@@ -16,8 +16,12 @@ void kit_group_begin(const char* id, float width)
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
         ImVec2(ImGui::GetFontSize() * dl.group_pad_x,
             ImGui::GetFontSize() * dl.group_pad_y));
+    // The card never scrolls itself — it sizes to its content — so the
+    // wheel must pass through to the page, or hovering the card kills
+    // scrolling for whatever it covers.
     ImGui::BeginChild(id, ImVec2(width, 0.0f),
-        ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysUseWindowPadding);
+        ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysUseWindowPadding,
+        ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoScrollbar);
 }
 
 void kit_group_end()

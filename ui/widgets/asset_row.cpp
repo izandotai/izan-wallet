@@ -21,13 +21,18 @@ AssetRowEvent kit_asset_row(const char* id, const char* symbol,
     const ImVec2 pos = ImGui::GetCursorScreenPos();
     const float row_w = ImGui::GetContentRegionAvail().x;
     // The dots keep their own slot so the numbers never sit under a
-    // button — the field-frame lesson, applied to a row.
-    const float slot = with_menu ? em * 1.5f : 0.0f;
+    // button — the field-frame lesson, applied to a row. The slot is
+    // wider than the glyph: the number column needs air before the
+    // dots or the two read as one smudge.
+    const float slot = with_menu ? em * 2.2f : 0.0f;
     const float body_w = row_w - slot;
     ImGui::PushID(id);
     ev.clicked = ImGui::InvisibleButton("##row", ImVec2(body_w, row_h));
     ev.hovered = ImGui::IsItemHovered();
-    if (with_menu && ImGui::IsItemClicked(ImGuiMouseButton_Right))
+    // Context menus open on release — the Windows contract; opening on
+    // the press reads as jumpy.
+    if (with_menu && ev.hovered
+        && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
         ev.menu = true;
     bool dots_hover = false;
     if (with_menu) {
@@ -87,7 +92,9 @@ AssetRowEvent kit_asset_row(const char* id, const char* symbol,
     if (with_menu) {
         // Three quiet discs, hand-drawn like every other glyph in the
         // kit — brighter under the pointer, with a soft ring behind.
-        const ImVec2 c(pos.x + body_w + slot * 0.5f, pos.y + row_h * 0.5f);
+        // Anchored off the row's right edge; the slot's slack is all
+        // breathing room between the numbers and the glyph.
+        const ImVec2 c(pos.x + row_w - em * 0.8f, pos.y + row_h * 0.5f);
         if (dots_hover) {
             ImVec4 ring = ImGui::GetStyleColorVec4(ImGuiCol_Text);
             ring.w = kit_is_dark() ? 0.08f : 0.06f;
