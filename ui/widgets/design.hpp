@@ -80,4 +80,16 @@ inline float kit_snap(float v)
     return float(int(v + 0.5f));
 }
 
+// Returns the layout cursor to `keep` after an overlay detour — the
+// imgui-legal way. A bare SetCursorScreenPos at the end of a widget
+// trips the "submit an item after moving the cursor" debug check, so
+// the position is re-asserted through a zero-size item (offset one
+// item-spacing up, which the zero item's own spacing puts back).
+inline void kit_cursor_restore(const ImVec2& keep)
+{
+    ImGui::SetCursorScreenPos(
+        ImVec2(keep.x, keep.y - ImGui::GetStyle().ItemSpacing.y));
+    ImGui::Dummy(ImVec2(0.0f, 0.0f));
+}
+
 }

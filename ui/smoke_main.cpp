@@ -15,6 +15,7 @@
 
 #include <array>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -182,8 +183,10 @@ void draw_kit_gallery()
     kit_group_begin("##sec-address");
     static std::array<char, 64> addr {};
     ImGui::SetNextItemWidth(em * 18.0f);
-    kit_address_field("##addr-demo", "收款地址", addr.data(), addr.size(),
-        "粘贴", "复制", "清除");
+    kit_address_field("##addr-demo", "收款地址（粘贴需 0x 开头 42 位）",
+        addr.data(), addr.size(), "粘贴", "复制", "清除", [](const char* s) {
+            return std::strlen(s) == 42 && s[0] == '0' && s[1] == 'x';
+        });
     kit_hyperlink("##link-demo", "etherscan.io/tx/0x43b5…e7",
         "https://etherscan.io/tx/0xdeadbeef");
     kit_group_end();

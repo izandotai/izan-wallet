@@ -1,6 +1,5 @@
 #include "ui/widgets/address_field.hpp"
 
-#include <cctype>
 #include <cstring>
 #include <string>
 
@@ -14,20 +13,25 @@ namespace izan::ui {
 namespace {
 
     // Clipboard text arrives with the neighborhood it was copied from;
-    // an address wants none of it.
-    void paste_into(char* buf, std::size_t size)
+    // an address wants none of it. Returns false when the validator
+    // turns the candidate away — the buffer stays untouched.
+    bool paste_into(char* buf, std::size_t size,
+        const std::function<bool(const char*)>& validate)
     {
         const char* clip = ImGui::GetClipboardText();
         if (!clip)
-            return;
+            return false;
         std::string text(clip);
         const auto first = text.find_first_not_of(" \t\r\n");
         const auto last = text.find_last_not_of(" \t\r\n");
         if (first == std::string::npos)
-            return;
+            return false;
         text = text.substr(first, last - first + 1);
+        if (validate && !validate(text.c_str()))
+            return false;
         std::strncpy(buf, text.c_str(), size - 1);
         buf[size - 1] = '\0';
+        return true;
     }
 
     void draw_paste_glyph(ImDrawList* draw, ImVec2 pos, float d, ImU32 color)
@@ -56,7 +60,7 @@ namespace {
 
 bool kit_address_field(const char* id, const char* hint, char* buf,
     std::size_t size, const char* paste_label, const char* copy_label,
-    const char* clear_label)
+    const char* clear_label, const std::function<bool(const char*)>& validate)
 {
     const float em = ImGui::GetFontSize();
     const float w = ImGui::CalcItemWidth();
@@ -71,6 +75,22 @@ bool kit_address_field(const char* id, const char* hint, char* buf,
     const ImVec2 fmax = ImGui::GetItemRectMax();
     ImGui::OpenPopupOnItemClick("##menu", ImGuiPopupFlags_MouseButtonRight);
 
+    // A refused paste answers with a moment of danger-colored border —
+    // a button that silently does nothing reads as a broken button.
+    ImGuiStorage* store = ImGui::GetStateStorage();
+    const ImGuiID reject_key = ImGui::GetID("##rejected-at");
+    auto reject = [&] { store->SetFloat(reject_key, float(ImGui::GetTime())); };
+    auto try_paste = [&] {
+        if (!paste_into(buf, size, validate))
+            reject();
+    };
+    const float rejected_at = store->GetFloat(reject_key, -1.0f);
+    if (rejected_at >= 0.0f && ImGui::GetTime() - rejected_at < 0.8) {
+        ImGui::GetWindowDrawList()->AddRect(fmin, fmax,
+            ImGui::GetColorU32(kit_danger()), ImGui::GetStyle().FrameRounding,
+            0, 2.0f);
+    }
+
     // The trailing glyph: paste into an empty field, clear a full one.
     const bool empty = buf[0] == '\0';
     const float d = em * 1.1f;
@@ -83,7 +103,7 @@ bool kit_address_field(const char* id, const char* hint, char* buf,
         ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
     if (ImGui::IsItemClicked()) {
         if (empty)
-            paste_into(buf, size);
+            try_paste();
         else
             buf[0] = '\0';
     }
@@ -95,12 +115,12 @@ bool kit_address_field(const char* id, const char* hint, char* buf,
         draw_paste_glyph(draw, gpos, d, tone);
     else
         draw_clear_glyph(draw, gpos, d, tone);
-    ImGui::SetCursorScreenPos(keep);
+    kit_cursor_restore(keep);
 
     if (ImGui::BeginPopup("##menu")) {
         ImGui::PushItemFlag(ImGuiItemFlags_NoNav, true);
         if (ImGui::MenuItem(paste_label))
-            paste_into(buf, size);
+            try_paste();
         if (ImGui::MenuItem(copy_label, nullptr, false, !empty))
             ImGui::SetClipboardText(buf);
         if (ImGui::MenuItem(clear_label, nullptr, false, !empty))

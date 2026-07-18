@@ -100,7 +100,7 @@ bool kit_amount_field(const char* id, char* buf, std::size_t size,
         draw->AddTriangleFilled(ImVec2(cx - chevron * 0.4f, cy),
             ImVec2(cx + chevron * 0.4f, cy), ImVec2(cx, cy + chevron * 0.42f),
             ImGui::GetColorU32(ImGuiCol_TextDisabled));
-        ImGui::SetCursorScreenPos(keep);
+        kit_cursor_restore(keep);
     }
     ImGui::PopID();
     return submitted;

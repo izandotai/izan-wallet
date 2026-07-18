@@ -207,7 +207,8 @@ void SendPage::draw_form(const i18n::Catalog& tr)
     ImGui::SetCursorPosX(left);
     ImGui::SetNextItemWidth(col);
     kit_address_field("##send-to", tr("send.to"), m_to.data(), m_to.size(),
-        tr("ui.paste"), tr("ui.copy_action"), tr("ui.clear"));
+        tr("ui.paste"), tr("ui.copy_action"), tr("ui.clear"),
+        [](const char* s) { return !crypto::eth_checksum_address(s).empty(); });
 
     const bool to_present = m_to[0] != '\0';
     const bool to_valid
