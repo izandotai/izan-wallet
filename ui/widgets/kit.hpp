@@ -32,3 +32,4 @@
 #include "ui/widgets/text_field.hpp"
 #include "ui/widgets/toggle.hpp"
 #include "ui/widgets/tooltip.hpp"
+#include "ui/widgets/tx_row.hpp"

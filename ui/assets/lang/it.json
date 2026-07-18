@@ -102,5 +102,7 @@
     "ui.clear": "Cancella",
     "menu.layout": "Disposizione",
     "layout.workbench": "Banco di lavoro",
-    "layout.classic": "Colonne classiche"
+    "layout.classic": "Colonne classiche",
+    "history.title": "Cronologia",
+    "history.empty": "Sblocca un portafoglio per vedere le sue transazioni."
 }

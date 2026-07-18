@@ -14,6 +14,11 @@
 
 namespace izan::ui {
 
+void kit_open_url(const char* url)
+{
+    ShellExecuteA(nullptr, "open", url, nullptr, nullptr, SW_SHOWNORMAL);
+}
+
 void kit_hyperlink(const char* id, const char* label, const char* url)
 {
     const std::string shown
@@ -33,7 +38,7 @@ void kit_hyperlink(const char* id, const char* label, const char* url)
         ImGui::SetTooltip("%s", url);
     }
     if (ImGui::IsItemClicked())
-        ShellExecuteA(nullptr, "open", url, nullptr, nullptr, SW_SHOWNORMAL);
+        kit_open_url(url);
     if (ImGui::IsItemClicked(ImGuiMouseButton_Right))
         ImGui::SetClipboardText(url);
     ImGui::PopID();

@@ -102,5 +102,7 @@
     "ui.clear": "Очистить",
     "menu.layout": "Макет",
     "layout.workbench": "Верстак",
-    "layout.classic": "Классические колонки"
+    "layout.classic": "Классические колонки",
+    "history.title": "История",
+    "history.empty": "Разблокируйте кошелёк, чтобы увидеть транзакции."
 }

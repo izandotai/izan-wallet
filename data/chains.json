@@ -8,7 +8,8 @@
             "https://ethereum-rpc.publicnode.com",
             "https://eth.llamarpc.com"
         ],
-        "explorer": "https://etherscan.io"
+        "explorer": "https://etherscan.io",
+        "history": "https://eth.blockscout.com"
     },
     {
         "chain_id": 4663,
@@ -18,7 +19,8 @@
         "rpc": [
             "https://rpc.mainnet.chain.robinhood.com"
         ],
-        "explorer": "https://robinhoodchain.blockscout.com"
+        "explorer": "https://robinhoodchain.blockscout.com",
+        "history": "https://robinhoodchain.blockscout.com"
     },
     {
         "chain_id": 8453,
@@ -29,7 +31,8 @@
             "https://mainnet.base.org",
             "https://base-rpc.publicnode.com"
         ],
-        "explorer": "https://basescan.org"
+        "explorer": "https://basescan.org",
+        "history": "https://base.blockscout.com"
     },
     {
         "chain_id": 42161,
@@ -40,7 +43,8 @@
             "https://arb1.arbitrum.io/rpc",
             "https://arbitrum-one-rpc.publicnode.com"
         ],
-        "explorer": "https://arbiscan.io"
+        "explorer": "https://arbiscan.io",
+        "history": "https://arbitrum.blockscout.com"
     },
     {
         "chain_id": 137,
@@ -51,7 +55,8 @@
             "https://polygon-rpc.com",
             "https://polygon-bor-rpc.publicnode.com"
         ],
-        "explorer": "https://polygonscan.com"
+        "explorer": "https://polygonscan.com",
+        "history": "https://polygon.blockscout.com"
     },
     {
         "chain_id": 11155111,
@@ -63,6 +68,7 @@
             "https://ethereum-sepolia-rpc.publicnode.com",
             "https://sepolia.drpc.org"
         ],
-        "explorer": "https://sepolia.etherscan.io"
+        "explorer": "https://sepolia.etherscan.io",
+        "history": "https://eth-sepolia.blockscout.com"
     }
 ]

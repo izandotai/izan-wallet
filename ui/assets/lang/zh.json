@@ -102,5 +102,7 @@
     "ui.clear": "清除",
     "menu.layout": "布局",
     "layout.workbench": "工作台",
-    "layout.classic": "经典三栏"
+    "layout.classic": "经典三栏",
+    "history.title": "历史",
+    "history.empty": "解锁钱包后显示交易记录。"
 }

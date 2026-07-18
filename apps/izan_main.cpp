@@ -19,6 +19,7 @@
 
 #include "keyd/child.hpp"
 #include "ui/i18n/catalog.hpp"
+#include "ui/pages/history_page.hpp"
 #include "ui/pages/portfolio_page.hpp"
 #include "ui/pages/send_page.hpp"
 #include "ui/pages/vault_page.hpp"
@@ -71,6 +72,7 @@ void apply_dock_template(ImGuiID dockspace, const ImVec2& size, int tpl)
         ImGui::DockBuilderDockWindow("###wallet-list", left);
         ImGui::DockBuilderDockWindow("###vault-page", center);
         ImGui::DockBuilderDockWindow("###portfolio-page", right);
+        ImGui::DockBuilderDockWindow("###history-page", right);
         ImGui::DockBuilderDockWindow("###send-page", right_bottom);
     } else {
         ImGuiID left = ImGui::DockBuilderSplitNode(
@@ -82,7 +84,9 @@ void apply_dock_template(ImGuiID dockspace, const ImVec2& size, int tpl)
         ImGui::DockBuilderDockWindow("###wallet-list", left);
         ImGui::DockBuilderDockWindow("###send-page", left_bottom);
         ImGui::DockBuilderDockWindow("###vault-page", center);
+        // Assets and the ledger share the bottom shelf as tabs.
         ImGui::DockBuilderDockWindow("###portfolio-page", bottom);
+        ImGui::DockBuilderDockWindow("###history-page", bottom);
     }
     ImGui::DockBuilderFinish(dockspace);
 }
@@ -265,6 +269,15 @@ int main(int argc, char** argv)
             send->prefill(chain_id, sym);
         });
 
+    // The ledger pane; same containment as its siblings.
+    std::optional<ui::HistoryPage> history;
+    std::string historyError;
+    try {
+        history.emplace(ui::executable_dir() / "data", vault);
+    } catch (const std::exception& e) {
+        historyError = e.what();
+    }
+
     app.set_render_callback([&] {
         app.begin_frame();
 
@@ -395,6 +408,14 @@ int main(int argc, char** argv)
                 (std::string(tr("portfolio.title")) + "###portfolio-page")
                     .c_str());
             ImGui::TextWrapped("%s", portfolioError.c_str());
+            ImGui::End();
+        }
+        if (history) {
+            history->draw(tr);
+        } else {
+            ImGui::Begin(
+                (std::string(tr("history.title")) + "###history-page").c_str());
+            ImGui::TextWrapped("%s", historyError.c_str());
             ImGui::End();
         }
 

@@ -102,5 +102,7 @@
     "ui.clear": "Clear",
     "menu.layout": "Layout",
     "layout.workbench": "Workbench",
-    "layout.classic": "Classic columns"
+    "layout.classic": "Classic columns",
+    "history.title": "History",
+    "history.empty": "Unlock a wallet to see its transactions."
 }

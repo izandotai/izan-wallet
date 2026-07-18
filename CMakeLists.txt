@@ -230,6 +230,7 @@ add_library(izan_domain STATIC
     domain/chains/rpc_client.cpp
     domain/config/config_trust.cpp
     domain/assets/balances.cpp
+    domain/assets/history.cpp
     domain/assets/portfolio.cpp
     domain/assets/prices.cpp
     domain/assets/token_registry.cpp
@@ -338,6 +339,7 @@ if(IZAN_BUILD_UI AND WIN32)
         ui/widgets/text_field.cpp
         ui/widgets/toggle.cpp
         ui/widgets/tooltip.cpp
+        ui/widgets/tx_row.cpp
     )
     target_include_directories(izan_kit PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
         PRIVATE ${qrcodegen_SOURCE_DIR}/cpp)
@@ -356,6 +358,7 @@ if(IZAN_BUILD_UI AND WIN32)
     add_executable(izan WIN32
         apps/izan_main.cpp
         ui/pages/portfolio_page.cpp
+        ui/pages/history_page.cpp
         ui/pages/send_page.cpp
         ui/pages/vault_page.cpp
         ui/pages/vault/accounts_view.cpp
@@ -393,6 +396,7 @@ add_executable(izan_tests
     tests/assets_test.cpp
     tests/portfolio_test.cpp
     tests/prices_test.cpp
+    tests/history_test.cpp
     tests/config_trust_test.cpp
     tests/i18n_test.cpp
     tests/tx_test.cpp
