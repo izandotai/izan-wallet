@@ -17,6 +17,7 @@
     "portfolio.warn.config": "チェーン／トークン設定が出荷時の既定と異なります。",
     "asset.menu.contract": "コントラクトアドレスをコピー",
     "asset.menu.explorer": "エクスプローラーで表示",
+    "wallet.filter": "ウォレットを検索",
     "vault.title": "金庫",
     "vault.create": "ウォレットを作成",
     "vault.import": "ウォレットをインポート",

@@ -17,6 +17,7 @@
     "portfolio.warn.config": "La configuración de cadenas y tokens difiere de la predeterminada.",
     "asset.menu.contract": "Copiar dirección del contrato",
     "asset.menu.explorer": "Ver en el explorador",
+    "wallet.filter": "Buscar carteras",
     "vault.title": "Bóveda",
     "vault.create": "Crear cartera",
     "vault.import": "Importar cartera",

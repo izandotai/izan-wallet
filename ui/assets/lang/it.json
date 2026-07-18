@@ -17,6 +17,7 @@
     "portfolio.warn.config": "La configurazione di catene e token differisce da quella predefinita.",
     "asset.menu.contract": "Copia l'indirizzo del contratto",
     "asset.menu.explorer": "Apri nell'esploratore",
+    "wallet.filter": "Cerca portafogli",
     "vault.title": "Cassaforte",
     "vault.create": "Crea portafoglio",
     "vault.import": "Importa portafoglio",

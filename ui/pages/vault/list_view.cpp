@@ -18,6 +18,21 @@ namespace {
         return *key ? tr(key) : "";
     }
 
+    // ASCII-fold substring match; multibyte names compare raw, which
+    // is exactly what typing a CJK fragment expects.
+    bool name_matches(const std::string& name, const char* needle)
+    {
+        if (!*needle)
+            return true;
+        auto fold = [](std::string s) {
+            for (char& c : s)
+                if (c >= 'A' && c <= 'Z')
+                    c += 'a' - 'A';
+            return s;
+        };
+        return fold(name).find(fold(needle)) != std::string::npos;
+    }
+
 }
 
 WalletListView::Event WalletListView::draw(const i18n::Catalog& tr, bool busy,
@@ -27,8 +42,33 @@ WalletListView::Event WalletListView::draw(const i18n::Catalog& tr, bool busy,
     Event ev;
     ImGui::BeginDisabled(busy);
 
-    const float em = ImGui::GetFontSize();
+    // The pinned header: filter, then the door. The add button opens
+    // a two-item menu instead of stacking two buttons — the sidebar
+    // stays narrow and the header stays one line in every language.
+    const float add_w = ImGui::GetFrameHeight();
+    const float spacing = ImGui::GetStyle().ItemSpacing.x;
+    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - add_w - spacing);
+    kit_text_field(
+        "##filter", tr("wallet.filter"), m_filter.data(), m_filter.size());
+    ImGui::SameLine();
+    if (kit_primary_button("+", add_w))
+        ImGui::OpenPopup("##add-menu");
+    if (kit_menu_begin("##add-menu")) {
+        if (kit_menu_item(tr("vault.create")))
+            ev.type = Event::Type::Create;
+        if (kit_menu_item(tr("vault.import")))
+            ev.type = Event::Type::Import;
+        kit_menu_end();
+    }
+    kit_vspace(0.35f);
+
+    // The cards scroll under the header in their own region; this
+    // child really scrolls, so it earns the wheel it captures.
+    ImGui::BeginChild("##wallet-scroll", ImVec2(0.0f, 0.0f));
+    const char* filter = m_filter.data();
     for (const WalletEntry& w : store.wallets()) {
+        if (!name_matches(w.name, filter))
+            continue;
         ImGui::PushID(w.id.c_str());
         const bool is_active = w.id == active_id;
 
@@ -68,26 +108,7 @@ WalletListView::Event WalletListView::draw(const i18n::Catalog& tr, bool busy,
         }
         ImGui::PopID();
     }
-
-    // New and Import live at the bottom of the pane, stacked full
-    // width — side by side they overflow a narrow sidebar — with the
-    // accent fill marking the primary of the pair.
-    // Two buttons, their gaps, the spacer items' own gaps, and a
-    // fixed breath between the list and the buttons — undercounting
-    // any of it pushes the import button into the window edge and
-    // clips it shorter.
-    const float breath = ImGui::GetFontSize() * 0.75f;
-    const float footer = ImGui::GetFrameHeight() * 2.0f
-        + ImGui::GetStyle().ItemSpacing.y * 3.0f + breath;
-    const float slack = ImGui::GetContentRegionAvail().y - footer;
-    if (slack > 0.0f)
-        ImGui::Dummy(ImVec2(0.0f, slack));
-    ImGui::Dummy(ImVec2(0.0f, breath));
-    const float bw = ImGui::GetContentRegionAvail().x;
-    if (kit_primary_button(tr("vault.create"), bw))
-        ev.type = Event::Type::Create;
-    if (kit_subtle_button(tr("vault.import"), bw))
-        ev.type = Event::Type::Import;
+    ImGui::EndChild();
 
     // Dialogs are opened outside the card loop so their ids are stable.
     if (m_open_rename) {
