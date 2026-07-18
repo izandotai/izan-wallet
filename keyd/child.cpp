@@ -329,7 +329,8 @@ int child_main(int argc, char** argv)
                 }
                 SignedDigest signature;
                 try {
-                    signature = sign_payload(*opened, p->payload);
+                    const ProposalBody body = parse_proposal(p->payload);
+                    signature = sign_payload(*opened, body.tx, body.account);
                 } catch (const std::exception& e) {
                     plane->audit.append(
                         "proposal.sign.fail id=" + std::to_string(id));
@@ -401,13 +402,24 @@ int child_main(int argc, char** argv)
                 break;
             }
             case Op::Address: {
+                uint32_t account = 0;
+                if (frame->size() == 1 + 4) {
+                    account = uint32_t(frame->data()[1])
+                        | uint32_t(frame->data()[2]) << 8
+                        | uint32_t(frame->data()[3]) << 16
+                        | uint32_t(frame->data()[4]) << 24;
+                } else if (frame->size() != 1) {
+                    send_err(channel, "short frame");
+                    break;
+                }
                 std::lock_guard lock(holder->mutex);
                 if (!holder->wallet) {
                     send_err(channel, "locked");
                     break;
                 }
                 try {
-                    const std::string addr = account_address(*holder->wallet);
+                    const std::string addr
+                        = account_address(*holder->wallet, account);
                     std::vector<uint8_t> body(1 + addr.size());
                     body[0] = uint8_t(holder->wallet->entropy.empty()
                             ? RevealKind::PrivateKey

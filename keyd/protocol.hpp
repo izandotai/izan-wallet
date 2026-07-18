@@ -29,10 +29,10 @@ enum class Op : uint8_t {
     // an approval does. What comes back depends on what the wallet is:
     // seed wallets reveal their entropy, key-only wallets their key.
     Reveal = 0x09, // body: passphrase bytes
-    // The wallet's own receive/sender address. Public data, but only
+    // A receive/sender address of the wallet. Public data, but only
     // derivable from the seed, so it answers only while unlocked —
     // a locked keyd tells nobody what it guards.
-    Address = 0x0a, // body: empty
+    Address = 0x0a, // body: empty (= account 0) or u32-LE account index
 
     // replies (keyd → UI)
     Hello = 0x40,       // body: version, hardening bitmask (sent once at start)

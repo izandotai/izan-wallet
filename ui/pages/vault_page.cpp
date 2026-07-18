@@ -2,7 +2,11 @@
 
 #include <algorithm>
 #include <cstring>
+#include <fstream>
+#include <sstream>
 #include <thread>
+
+#include <glaze/glaze.hpp>
 
 #include <imgui.h>
 #include <sodium.h>
@@ -20,6 +24,13 @@ namespace {
 
     constexpr ImGuiInputTextFlags kSecretField
         = ImGuiInputTextFlags_Password | ImGuiInputTextFlags_AutoSelectAll;
+
+    // Sidecar for the HD account line (public data): how many accounts
+    // the user opened and which is selected.
+    struct AccountsMeta {
+        uint32_t count = 1;
+        uint32_t active = 0;
+    };
 
     std::string_view trimmed(std::string_view text)
     {
@@ -129,13 +140,65 @@ void VaultPage::switch_active(const std::string& name)
         m_keyd.reset();
     }
     wipe_buffers();
-    m_address.clear();
+    m_account_addrs.clear();
     m_status.clear();
     m_unlocked = false;
     m_active = name;
     m_vault_path = wallet_path(name);
+    load_accounts_meta();
     m_mode = std::filesystem::exists(m_vault_path) ? Mode::Locked
                                                    : Mode::NoWallets;
+}
+
+void VaultPage::load_accounts_meta()
+{
+    m_account_count = 1;
+    m_account_active = 0;
+    AccountsMeta meta;
+    std::ifstream f(m_dir / (m_active + ".accounts.json"), std::ios::binary);
+    if (!f)
+        return;
+    std::ostringstream buf;
+    buf << f.rdbuf();
+    if (!glz::read<glz::opts { .error_on_unknown_keys = false }>(
+            meta, buf.str())) {
+        m_account_count = meta.count > 0 ? meta.count : 1;
+        m_account_active = meta.active < m_account_count ? meta.active : 0;
+    }
+}
+
+void VaultPage::save_accounts_meta() const
+{
+    AccountsMeta meta { m_account_count, m_account_active };
+    std::string out;
+    if (glz::write<glz::opts { .prettify = true }>(meta, out))
+        return;
+    std::ofstream f(m_dir / (m_active + ".accounts.json"),
+        std::ios::binary | std::ios::trunc);
+    f << out;
+}
+
+void VaultPage::refresh_addresses()
+{
+    m_account_addrs.clear();
+    if (!m_keyd)
+        return;
+    auto first = m_keyd->address(0);
+    if (!first) {
+        m_account_addrs.push_back(m_keyd->last_error());
+        return;
+    }
+    m_account_addrs.push_back(*first);
+    if (m_keyd->wallet_kind() != keyd::RevealKind::SeedEntropy) {
+        // A key wallet has exactly the one address.
+        m_account_count = 1;
+        m_account_active = 0;
+        return;
+    }
+    for (uint32_t i = 1; i < m_account_count; ++i) {
+        auto addr = m_keyd->address(i);
+        m_account_addrs.push_back(addr ? *addr : m_keyd->last_error());
+    }
 }
 
 SecureBytes VaultPage::take_secret(std::array<char, 256>& buf)
@@ -190,10 +253,9 @@ void VaultPage::poll_job()
             m_show_kind = m_job->secret_kind;
         }
         if (m_unlocked && m_keyd) {
-            // The receive address, fetched once per unlock: the first
-            // thing a person needs from an unlocked wallet.
-            auto addr = m_keyd->address();
-            m_address = addr ? *addr : m_keyd->last_error();
+            // The addresses, fetched once per unlock: the first thing
+            // a person needs from an unlocked wallet.
+            refresh_addresses();
         }
     } else if (m_job->error.find("passphrase") != std::string::npos) {
         // Known trust-plane refusals ("bad passphrase", "wrong
@@ -522,14 +584,33 @@ void VaultPage::draw_locked(const i18n::Catalog& tr)
 void VaultPage::draw_unlocked(const i18n::Catalog& tr)
 {
     ImGui::TextUnformatted(tr("vault.state.unlocked"));
-    if (!m_address.empty()) {
-        ImGui::TextDisabled("%s", tr("vault.address"));
+
+    // The account line: every derived address, the selected one marked.
+    // A key wallet shows its single address and no way to grow — that
+    // is what it is.
+    const bool hd
+        = m_keyd && m_keyd->wallet_kind() == keyd::RevealKind::SeedEntropy;
+    ImGui::TextDisabled("%s", tr("vault.address"));
+    for (uint32_t i = 0; i < m_account_addrs.size(); ++i) {
+        ImGui::PushID(int(i));
+        const bool selected = i == m_account_active;
+        if (ImGui::RadioButton("##acct", selected) && !selected) {
+            m_account_active = i;
+            save_accounts_meta();
+        }
         ImGui::SameLine();
-        ImGui::TextUnformatted(m_address.c_str());
+        ImGui::TextUnformatted(m_account_addrs[std::size_t(i)].c_str());
         if (ImGui::IsItemClicked())
-            ImGui::SetClipboardText(m_address.c_str());
+            ImGui::SetClipboardText(m_account_addrs[std::size_t(i)].c_str());
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("%s", tr("ui.copy"));
+        ImGui::PopID();
+    }
+    if (hd && ImGui::Button(tr("wallet.account.add"))) {
+        ++m_account_count;
+        save_accounts_meta();
+        auto addr = m_keyd->address(m_account_count - 1);
+        m_account_addrs.push_back(addr ? *addr : m_keyd->last_error());
     }
     ImGui::Spacing();
 
@@ -538,7 +619,7 @@ void VaultPage::draw_unlocked(const i18n::Catalog& tr)
     if (ImGui::Button(tr("vault.lock")) && m_keyd) {
         if (m_keyd->lock()) {
             m_unlocked = false;
-            m_address.clear();
+            m_account_addrs.clear();
             m_status.clear();
             m_mode = Mode::Locked;
         }

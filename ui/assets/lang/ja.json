@@ -73,5 +73,6 @@
     "vault.kind.hd": "HDウォレット",
     "vault.kind.key": "秘密鍵ウォレット",
     "vault.err.secret": "有効なリカバリーフレーズまたは秘密鍵ではありません。",
-    "vault.warn.backup.key": "この秘密鍵を知っている人は誰でもこのウォレットの資産を動かせます。絶対に共有しないでください。"
+    "vault.warn.backup.key": "この秘密鍵を知っている人は誰でもこのウォレットの資産を動かせます。絶対に共有しないでください。",
+    "wallet.account.add": "新しいアドレスを導出"
 }

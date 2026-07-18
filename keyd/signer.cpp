@@ -2,6 +2,7 @@
 
 #include <cstring>
 #include <stdexcept>
+#include <string>
 
 #include <sodium.h>
 
@@ -19,7 +20,8 @@ namespace izan::keyd {
 
 namespace {
 
-    crypto::HdKey account_key(const secure::SecureBytes& entropy)
+    crypto::HdKey account_key(
+        const secure::SecureBytes& entropy, uint32_t account)
     {
         const secure::SecureBytes mnemonic
             = crypto::entropy_to_mnemonic(entropy);
@@ -29,7 +31,8 @@ namespace {
         sodium_memzero(seed.data(), seed.size());
         if (!root)
             throw std::runtime_error("signer: seed rejected");
-        std::optional<crypto::HdKey> key = root->derive(kEthAccountPath);
+        std::optional<crypto::HdKey> key
+            = root->derive(kEthAccountPathPrefix + std::to_string(account));
         if (!key)
             throw std::runtime_error("signer: account underivable");
         return *key;
@@ -59,17 +62,34 @@ namespace {
 
 }
 
-SignedDigest sign_payload(
-    const vault::Wallet& wallet, std::span<const uint8_t> payload)
+ProposalBody parse_proposal(std::span<const uint8_t> payload)
 {
-    if (payload.empty())
+    ProposalBody body;
+    if (!payload.empty() && payload.front() == kEnvelopeV1) {
+        if (payload.size() < 5)
+            throw std::invalid_argument("signer: truncated envelope");
+        body.account = uint32_t(payload[1]) | uint32_t(payload[2]) << 8
+            | uint32_t(payload[3]) << 16 | uint32_t(payload[4]) << 24;
+        body.tx = payload.subspan(5);
+    } else {
+        body.tx = payload;
+    }
+    if (body.tx.empty())
+        throw std::invalid_argument("signer: empty payload");
+    return body;
+}
+
+SignedDigest sign_payload(
+    const vault::Wallet& wallet, std::span<const uint8_t> tx, uint32_t account)
+{
+    if (tx.empty())
         throw std::invalid_argument("signer: empty payload");
 
     SignedDigest out;
-    keccak_256(payload.data(), payload.size(), out.digest.data());
+    keccak_256(tx.data(), tx.size(), out.digest.data());
 
     if (!wallet.entropy.empty()) {
-        const crypto::HdKey key = account_key(wallet.entropy);
+        const crypto::HdKey key = account_key(wallet.entropy, account);
         const std::optional<crypto::EcdsaSignature> sig
             = key.sign_digest(out.digest);
         if (!sig)
@@ -77,6 +97,9 @@ SignedDigest sign_payload(
         out.sig = *sig;
         out.signer = crypto::eth_address(key.public_key_uncompressed());
     } else if (!wallet.imported.empty()) {
+        if (account != 0)
+            throw std::invalid_argument(
+                "signer: a key wallet has a single address");
         sign_with_raw(wallet.imported.front().key, out.digest, out);
     } else {
         throw std::invalid_argument("signer: wallet holds no signing key");
@@ -84,12 +107,15 @@ SignedDigest sign_payload(
     return out;
 }
 
-std::string account_address(const vault::Wallet& wallet)
+std::string account_address(const vault::Wallet& wallet, uint32_t account)
 {
     if (!wallet.entropy.empty())
         return crypto::eth_address(
-            account_key(wallet.entropy).public_key_uncompressed());
+            account_key(wallet.entropy, account).public_key_uncompressed());
     if (!wallet.imported.empty()) {
+        if (account != 0)
+            throw std::invalid_argument(
+                "signer: a key wallet has a single address");
         const secure::SecureBytes& key = wallet.imported.front().key;
         if (key.size() != 32)
             throw std::runtime_error("signer: malformed imported key");

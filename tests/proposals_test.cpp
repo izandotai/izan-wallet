@@ -286,15 +286,33 @@ TEST_CASE("keyd proposals: submission, provenance, passphrase-gated verdicts")
     CHECK(query_state(pipe, *uiId) == ProposalState::Denied);
     CHECK(!keyd.deny(9999));
 
+    // An enveloped proposal signs as the enclosed account: derive the
+    // wallet's account #1 through keyd and check the signature lands
+    // there, not on account #0.
+    REQUIRE(keyd.unlock(sb_from("correct horse")));
+    auto addr1 = keyd.address(1);
+    REQUIRE(addr1);
+    std::vector<uint8_t> enveloped { kEnvelopeV1, 0x01, 0x00, 0x00, 0x00 };
+    const std::vector<uint8_t> innerTx { 't', 'x', '9' };
+    enveloped.insert(enveloped.end(), innerTx.begin(), innerTx.end());
+    auto envId = keyd.submit_ui(enveloped);
+    REQUIRE(envId);
+    uint8_t envDigest[32];
+    keccak_256(innerTx.data(), innerTx.size(), envDigest);
+    auto envSig = keyd.approve(*envId, sb_from("correct horse"));
+    REQUIRE(envSig);
+    CHECK(recovered_signer(*envSig, envDigest) == *addr1);
+    CHECK(*addr1 != kDevAccount0);
+
     CHECK(keyd.shutdown());
     auto exit = keyd.wait_exit(5000);
     REQUIRE(exit);
     CHECK(*exit == 0);
 
     // Every consequential moment above must have left a verifiable
-    // line: two submits, one forged-MAC alarm, one bad passphrase, one
-    // approval, one denial.
-    CHECK(AuditLog::verify(auditPath) == 6);
+    // line: three submits, one forged-MAC alarm, one bad passphrase,
+    // two approvals, one denial.
+    CHECK(AuditLog::verify(auditPath) == 8);
 
     // The approval record commits to what was signed and by whom —
     // the countable leg of the sign ≡ approve ≡ audit identity.
@@ -356,6 +374,40 @@ TEST_CASE("signer: the wallet's contents choose the key")
     wire.r = byKey.sig.r;
     wire.s = byKey.sig.s;
     CHECK(recovered_signer(wire, digest) == kDevAccount0);
+
+    // HD means endless addresses: index 1 lands on the second Hardhat
+    // account, and the signature speaks for it.
+    const char* kDevAccount1 = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
+    CHECK(account_address(seed, 1) == kDevAccount1);
+    const SignedDigest byIdx = sign_payload(seed, payload, 1);
+    CHECK(byIdx.signer == kDevAccount1);
+    wire.y_parity = byIdx.sig.y_parity;
+    wire.r = byIdx.sig.r;
+    wire.s = byIdx.sig.s;
+    CHECK(recovered_signer(wire, digest) == kDevAccount1);
+
+    // A key wallet has exactly one identity; other indexes are lies.
+    CHECK_THROWS_AS(account_address(keyed, 1), std::invalid_argument);
+    CHECK_THROWS_AS(sign_payload(keyed, payload, 1), std::invalid_argument);
+
+    // Envelope parsing: versioned prefix carries the account, bare
+    // payloads stay account 0, truncation refuses.
+    {
+        std::vector<uint8_t> enveloped { izan::keyd::kEnvelopeV1, 0x07, 0x00,
+            0x00, 0x00, 0xAA, 0xBB };
+        const auto body = izan::keyd::parse_proposal(enveloped);
+        CHECK(body.account == 7);
+        REQUIRE(body.tx.size() == 2);
+        CHECK(body.tx[0] == 0xAA);
+        const auto bare = izan::keyd::parse_proposal(payload);
+        CHECK(bare.account == 0);
+        CHECK(bare.tx.size() == payload.size());
+        const std::vector<uint8_t> truncated { izan::keyd::kEnvelopeV1, 0x01 };
+        CHECK_THROWS(izan::keyd::parse_proposal(truncated));
+        const std::vector<uint8_t> empty_tx { izan::keyd::kEnvelopeV1, 0x00,
+            0x00, 0x00, 0x00 };
+        CHECK_THROWS(izan::keyd::parse_proposal(empty_tx));
+    }
 
     // An empty wallet has nothing to say.
     CHECK_THROWS_AS(

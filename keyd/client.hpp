@@ -63,9 +63,10 @@ public:
     // nullopt = channel broken.
     std::optional<bool> unlocked();
     bool shutdown();
-    // The wallet's account address; refuses while locked (the refusal
-    // lands in last_error()).
-    std::optional<std::string> address();
+    // A wallet address by account index (HD wallets derive one per
+    // index, key wallets only answer for 0); refuses while locked (the
+    // refusal lands in last_error()).
+    std::optional<std::string> address(uint32_t account = 0);
 
     // What the active wallet is, learned from the last successful
     // address() call — drives type-adaptive labels in the UI.

@@ -2,6 +2,7 @@
 
 #include <array>
 #include <atomic>
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -51,6 +52,13 @@ public:
         return m_active;
     }
 
+    // The selected account index within the active wallet (always 0
+    // for key wallets); send flows derive and sign as this identity.
+    uint32_t active_account() const
+    {
+        return m_account_active;
+    }
+
     // The live trust-plane handle, for pages that submit and approve
     // proposals; null until a keyd has been spawned. Ownership stays
     // here — pages borrow, never keep.
@@ -89,6 +97,9 @@ private:
 
     void rescan_wallets();
     void switch_active(const std::string& name);
+    void load_accounts_meta();
+    void save_accounts_meta() const;
+    void refresh_addresses(); // account list, via keyd, while unlocked
     // A fresh wallet's file name: ASCII letters, digits, dash and
     // underscore only — vault paths travel through narrow-string APIs
     // where anything fancier depends on the system code page.
@@ -104,10 +115,16 @@ private:
     std::string m_exe_path;
     std::vector<std::string> m_wallets;
     std::string m_active;
-    std::string m_vault_path;       // of the active wallet
+    std::string m_vault_path; // of the active wallet
     Mode m_mode = Mode::NoWallets;
     bool m_unlocked = false;
-    std::string m_address;          // account #0, fetched at unlock
+    // The HD account line the user has opened so far: how many, which
+    // one is selected, and their addresses (fetched at unlock). Not
+    // secret — it lives beside the vault file as <name>.accounts.json
+    // so it travels with the wallet.
+    uint32_t m_account_count = 1;
+    uint32_t m_account_active = 0;
+    std::vector<std::string> m_account_addrs;
     std::string m_status;           // last message key or verbatim error
     bool m_status_is_key = false;
 

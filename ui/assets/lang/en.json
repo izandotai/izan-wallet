@@ -73,5 +73,6 @@
     "vault.kind.hd": "HD wallet",
     "vault.kind.key": "Private-key wallet",
     "vault.err.secret": "Not a valid recovery phrase or private key.",
-    "vault.warn.backup.key": "Anyone who knows this key can spend this wallet's funds. Never share it."
+    "vault.warn.backup.key": "Anyone who knows this key can spend this wallet's funds. Never share it.",
+    "wallet.account.add": "Derive new address"
 }

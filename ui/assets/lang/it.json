@@ -73,5 +73,6 @@
     "vault.kind.hd": "Portafoglio HD",
     "vault.kind.key": "Portafoglio a chiave privata",
     "vault.err.secret": "Non è una frase di recupero né una chiave privata valida.",
-    "vault.warn.backup.key": "Chiunque conosca questa chiave può spendere i fondi di questo portafoglio. Non condividerla mai."
+    "vault.warn.backup.key": "Chiunque conosca questa chiave può spendere i fondi di questo portafoglio. Non condividerla mai.",
+    "wallet.account.add": "Deriva nuovo indirizzo"
 }
