@@ -37,6 +37,14 @@ public:
         return m_unlocked;
     }
 
+    // The live trust-plane handle, for pages that submit and approve
+    // proposals; null until a keyd has been spawned. Ownership stays
+    // here — pages borrow, never keep.
+    keyd::KeydClient* keyd()
+    {
+        return m_keyd ? &*m_keyd : nullptr;
+    }
+
 private:
     enum class Mode {
         NoVault,

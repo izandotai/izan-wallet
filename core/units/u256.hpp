@@ -127,6 +127,22 @@ struct U256 {
         return r;
     }
 
+    // Fee math: gas limit × price per gas. Same overflow contract as
+    // the additive ops — money never wraps.
+    U256 checked_mul_u64(uint64_t m) const
+    {
+        U256 r;
+        unsigned __int128 carry = 0;
+        for (int i = 31; i >= 0; --i) {
+            carry += static_cast<unsigned __int128>(be[i]) * m;
+            r.be[i] = uint8_t(carry & 0xff);
+            carry >>= 8;
+        }
+        if (carry)
+            throw std::overflow_error("U256: mul overflow");
+        return r;
+    }
+
     U256 checked_sub(const U256& other) const
     {
         U256 r;

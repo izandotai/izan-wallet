@@ -19,6 +19,7 @@
 #include "keyd/child.hpp"
 #include "ui/i18n/catalog.hpp"
 #include "ui/pages/portfolio_page.hpp"
+#include "ui/pages/send_page.hpp"
 #include "ui/pages/vault_page.hpp"
 #include "ui/shell/app.hpp"
 #include "ui/shell/chrome_state.hpp"
@@ -192,6 +193,15 @@ int main(int argc, char** argv)
         portfolioError = e.what();
     }
 
+    // Same containment for the send pane's chain registry.
+    std::optional<ui::SendPage> send;
+    std::string sendError;
+    try {
+        send.emplace(ui::executable_dir() / "data", vault);
+    } catch (const std::exception& e) {
+        sendError = e.what();
+    }
+
     app.set_render_callback([&] {
         app.begin_frame();
 
@@ -264,6 +274,14 @@ int main(int argc, char** argv)
         ImGui::PopStyleVar();
 
         vault.draw(app.window(), tr);
+        if (send) {
+            send->draw(app.window(), tr);
+        } else {
+            ImGui::Begin(
+                (std::string(tr("send.title")) + "###send-page").c_str());
+            ImGui::TextWrapped("%s", sendError.c_str());
+            ImGui::End();
+        }
         if (portfolio) {
             portfolio->draw(tr);
         } else {

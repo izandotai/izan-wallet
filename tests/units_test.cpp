@@ -84,6 +84,15 @@ TEST_CASE("u256 checked arithmetic refuses to wrap")
     CHECK_THROWS_AS(max.checked_add(U256::from_u64(1)), std::overflow_error);
     CHECK_THROWS_AS(
         U256::from_u64(0).checked_sub(U256::from_u64(1)), std::underflow_error);
+
+    // Fee math: gas × price, carries crossing the 64-bit line.
+    CHECK(U256::from_u64(21000).checked_mul_u64(2000000000).to_dec()
+        == "42000000000000");
+    CHECK(U256::from_u64(UINT64_MAX).checked_mul_u64(UINT64_MAX).to_hex()
+        == "0xfffffffffffffffe0000000000000001");
+    CHECK(max.checked_mul_u64(1) == max);
+    CHECK(U256::from_u64(0).checked_mul_u64(UINT64_MAX).is_zero());
+    CHECK_THROWS_AS(max.checked_mul_u64(2), std::overflow_error);
 }
 
 TEST_CASE("format_units renders exact human decimals")

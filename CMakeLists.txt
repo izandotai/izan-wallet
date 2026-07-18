@@ -291,6 +291,7 @@ if(IZAN_BUILD_UI AND WIN32)
     add_executable(izan WIN32
         apps/izan_main.cpp
         ui/pages/portfolio_page.cpp
+        ui/pages/send_page.cpp
         ui/pages/vault_page.cpp
     )
     target_link_libraries(izan PRIVATE izan_ui_shell izan_i18n izan_keyd
