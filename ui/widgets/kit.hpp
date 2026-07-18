@@ -6,6 +6,8 @@
 // widgets for anything the kit covers. This header is the whole
 // library; include a single component's header for a lean build edge.
 
+#include "ui/widgets/amount_field.hpp"
+#include "ui/widgets/asset_row.hpp"
 #include "ui/widgets/avatar.hpp"
 #include "ui/widgets/button.hpp"
 #include "ui/widgets/card.hpp"
@@ -18,6 +20,7 @@
 #include "ui/widgets/list_row.hpp"
 #include "ui/widgets/pill.hpp"
 #include "ui/widgets/qr.hpp"
+#include "ui/widgets/result_mark.hpp"
 #include "ui/widgets/select.hpp"
 #include "ui/widgets/spinner.hpp"
 #include "ui/widgets/step_dots.hpp"

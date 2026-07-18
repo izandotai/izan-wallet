@@ -209,7 +209,7 @@ int main(int argc, char** argv)
     std::optional<ui::PortfolioPage> portfolio;
     std::string portfolioError;
     try {
-        portfolio.emplace(ui::executable_dir() / "data");
+        portfolio.emplace(ui::executable_dir() / "data", vault);
     } catch (const std::exception& e) {
         portfolioError = e.what();
     }

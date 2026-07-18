@@ -18,14 +18,16 @@ struct GLFWwindow;
 
 namespace izan::ui {
 
-// The send page: form → quote → proposal → human approval (which IS
-// the signature) → broadcast → receipt. Everything slow runs on a
-// background job the frame loop polls; the passphrase follows the
-// vault page's red lines (guarded memory, wiped buffers, IME detached
-// while a secret field has focus). The trust-plane handle is borrowed
-// from the vault page — keyd only ever signs the queue's own bytes,
-// so nothing on this page can move money without the human's
-// passphrase at the approval step.
+// The send page: the amount is the hero of a centered form, and
+// everything after "Review & Send" is one confirmation dialog —
+// quote, review, passphrase, delivery and receipt share a single
+// window, because confirming and authorizing are the same ritual.
+// Everything slow runs on a background job the frame loop polls; the
+// passphrase follows the vault page's red lines (guarded memory,
+// wiped buffers, IME detached while a secret field has focus). The
+// trust-plane handle is borrowed from the vault page — keyd only ever
+// signs the queue's own bytes, so nothing on this page can move money
+// without the human's passphrase at the approval step.
 class SendPage {
 public:
     SendPage(const std::filesystem::path& data_dir, VaultPage& vault);
@@ -36,9 +38,8 @@ public:
 private:
     enum class Stage {
         Form,
-        Quoting,
-        Review,
-        Approving,  // proposal pending, passphrase field up
+        Quoting,    // dialog up, fetching nonce/gas/fees
+        Review,     // dialog: figures + passphrase; confirm approves
         Delivering, // approve → sign → broadcast → receipt, one job
         Done,
         Failed,
@@ -59,10 +60,10 @@ private:
     };
 
     void draw_form(const i18n::Catalog& tr);
-    void draw_review(const i18n::Catalog& tr);
-    void draw_approving(const i18n::Catalog& tr);
-    void draw_delivering(const i18n::Catalog& tr);
-    void draw_done(const i18n::Catalog& tr);
+    void draw_confirm_dialog(const i18n::Catalog& tr);
+    void begin_review();
+    void confirm_send();
+    void cancel_flow();
     void poll_job();
     void reset_to_form();
     const chains::ChainSpec& selected_chain() const;
@@ -76,6 +77,8 @@ private:
     std::array<char, 32> m_amount {};
     std::array<char, 256> m_pass {};
     bool m_ime_disabled = false;
+    bool m_secret_focus = false;
+    bool m_focus_pass = false; // focus the passphrase once per entry
 
     // The reviewed draft; immutable once the proposal is submitted —
     // keyd signs the queue's copy of exactly these bytes.

@@ -311,6 +311,8 @@ if(IZAN_BUILD_UI AND WIN32)
     # host a component gallery without dragging the wallet in.
     add_library(izan_kit STATIC
         ${qrcodegen_SOURCE_DIR}/cpp/qrcodegen.cpp
+        ui/widgets/amount_field.cpp
+        ui/widgets/asset_row.cpp
         ui/widgets/avatar.cpp
         ui/widgets/button.cpp
         ui/widgets/card.cpp
@@ -323,6 +325,7 @@ if(IZAN_BUILD_UI AND WIN32)
         ui/widgets/list_row.cpp
         ui/widgets/pill.cpp
         ui/widgets/qr.cpp
+        ui/widgets/result_mark.cpp
         ui/widgets/select.cpp
         ui/widgets/spinner.cpp
         ui/widgets/step_dots.cpp

@@ -49,7 +49,7 @@
     "send.gas": "Gas",
     "send.fee_max": "Comisión máx.",
     "send.total_max": "Total (máx.)",
-    "send.confirm": "Crear propuesta",
+    "send.confirm": "Confirmar",
     "send.back": "Volver",
     "send.proposal": "Propuesta",
     "send.passphrase": "Frase de contraseña",
@@ -93,5 +93,10 @@
     "ui.back": "Atrás",
     "ui.copied": "Copiado",
     "vault.warn.backup.key": "Cualquiera que conozca esta clave puede gastar los fondos de esta cartera. No la compartas nunca.",
-    "wallet.account.add": "Derivar nueva dirección"
+    "wallet.account.add": "Derivar nueva dirección",
+    "send.review_send": "Revisar y enviar",
+    "ui.done": "Listo",
+    "portfolio.lookup": "Consultar dirección",
+    "portfolio.mine": "Mis activos",
+    "portfolio.empty": "Desbloquea una cartera para ver sus activos."
 }

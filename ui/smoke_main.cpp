@@ -165,6 +165,13 @@ void draw_kit_gallery()
     kit_group_end();
     kit_vspace();
 
+    kit_heading("金额输入 amount_field");
+    kit_group_begin("##sec-amount");
+    static std::array<char, 32> amount {};
+    kit_amount_field("##amount", amount.data(), amount.size());
+    kit_group_end();
+    kit_vspace();
+
     kit_heading("粘贴框 paste_box");
     kit_paste_box("##paste", "粘贴助记词、私钥或 WIF", paste.data(),
         paste.size(), 3.0f, secret_focus);
@@ -227,11 +234,23 @@ void draw_kit_gallery()
     kit_group_end();
     kit_vspace();
 
-    kit_heading("反馈 spinner · step_dots");
+    kit_heading("反馈 spinner · step_dots · result_mark");
     kit_group_begin("##sec-feedback");
     kit_spinner();
     ImGui::SameLine();
     kit_step_dots(1, 3);
+    kit_result_mark(true, 2.2f);
+    kit_result_mark(false, 2.2f);
+    kit_group_end();
+    kit_vspace();
+
+    kit_heading("资产行 asset_row");
+    kit_group_begin("##sec-assets");
+    kit_asset_row("##a0", "ETH", "Ethereum", "0.0012", true, "");
+    kit_hairline();
+    kit_asset_row("##a1", "USDC.e", "Polygon", "0.10", true, "");
+    kit_hairline();
+    kit_asset_row("##a2", "SOL", "Solana", "", false, "链无响应");
     kit_group_end();
     kit_vspace();
 

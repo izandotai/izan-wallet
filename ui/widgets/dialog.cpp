@@ -96,7 +96,7 @@ void kit_dialog_open(const char* id)
     ImGui::OpenPopup(id);
 }
 
-bool kit_dialog_begin(const char* id, bool* dismissed)
+bool kit_dialog_begin(const char* id, bool* dismissed, bool escapable)
 {
     push_dialog_style();
     // Anchored to the viewport's center every frame — resizing the
@@ -112,7 +112,7 @@ bool kit_dialog_begin(const char* id, bool* dismissed)
     }
     paint_window_decor();
     ImGui::Dummy(ImVec2(dialog_width(), 0.0f));
-    if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+    if (escapable && ImGui::IsKeyPressed(ImGuiKey_Escape)) {
         if (dismissed)
             *dismissed = true;
         ImGui::CloseCurrentPopup();

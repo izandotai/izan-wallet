@@ -30,7 +30,10 @@ void kit_dialog_open(const char* id);
 
 // true while the dialog is showing; *dismissed is set on the frame
 // Escape closes it (the dialog is already closing — clean up).
-bool kit_dialog_begin(const char* id, bool* dismissed = nullptr);
+// escapable = false pins the dialog open through an irreversible
+// moment — money in flight has no cancel key.
+bool kit_dialog_begin(
+    const char* id, bool* dismissed = nullptr, bool escapable = true);
 void kit_dialog_end();
 void kit_dialog_close();
 

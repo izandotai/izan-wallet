@@ -49,7 +49,7 @@
     "send.gas": "Gas",
     "send.fee_max": "费用上限",
     "send.total_max": "合计（上限）",
-    "send.confirm": "创建提案",
+    "send.confirm": "确认发送",
     "send.back": "返回",
     "send.proposal": "提案",
     "send.passphrase": "口令",
@@ -93,5 +93,10 @@
     "ui.back": "返回",
     "ui.copied": "已复制",
     "vault.warn.backup.key": "任何知道这个私钥的人都能动用该钱包的资产，绝不要泄露。",
-    "wallet.account.add": "派生新地址"
+    "wallet.account.add": "派生新地址",
+    "send.review_send": "审阅并发送",
+    "ui.done": "完成",
+    "portfolio.lookup": "查询任意地址",
+    "portfolio.mine": "我的资产",
+    "portfolio.empty": "解锁钱包后自动显示资产。"
 }

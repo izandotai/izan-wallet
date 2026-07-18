@@ -58,6 +58,21 @@ public:
         return m_active;
     }
 
+    // Display name of the active wallet, for pages that name the sender.
+    const std::string& active_name() const
+    {
+        return m_active_name;
+    }
+
+    // The selected account's address while unlocked; empty otherwise.
+    // The send and assets pages follow it.
+    std::string active_address() const
+    {
+        const auto& book = m_session.addresses();
+        return m_meta.active < book.size() ? book[m_meta.active]
+                                           : std::string();
+    }
+
     // The selected account index within the active wallet (always 0
     // for key wallets); send flows derive and sign as this identity.
     uint32_t active_account() const

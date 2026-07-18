@@ -9,20 +9,22 @@
 
 #include "domain/assets/portfolio.hpp"
 #include "ui/i18n/catalog.hpp"
+#include "ui/pages/vault_page.hpp"
 
 namespace izan::ui {
 
-// Watch-only portfolio: paste an address, see the assets. The Ship-0
-// kernel in window form. Snapshots run on a background job — a slow
-// RPC must never freeze the frame loop — and a chain that fails to
-// answer stays visible as an unreadable row, never as a blank.
+// The assets page follows the vault: unlock a wallet and its holdings
+// appear, no address to paste — looking up a foreign address is the
+// secondary flow behind a link. Snapshots run on a background job — a
+// slow RPC must never freeze the frame loop — and a chain that fails
+// to answer stays visible as an unreadable row, never as a blank.
 class PortfolioPage {
 public:
     // Loads chains.json / tokens.json from data_dir. A malformed
     // config throws (a wallet must not limp along); a config that
     // merely differs from the shipped defaults loads fine but raises
     // the modified-config warning in the page (§ config trust).
-    explicit PortfolioPage(const std::filesystem::path& data_dir);
+    PortfolioPage(const std::filesystem::path& data_dir, VaultPage& vault);
 
     void draw(const i18n::Catalog& tr);
 
@@ -41,8 +43,14 @@ private:
         std::vector<Row> rows;
     };
 
+    void refresh(const std::string& address);
+
     std::shared_ptr<assets::PortfolioReader> m_reader;
+    VaultPage& m_vault;
+    std::string m_followed;    // the address the shown rows belong to
+    bool m_manual = false;     // looking up a foreign address
     std::array<char, 128> m_address {};
+    double m_fetched_at = 0.0; // frame clock at the last snapshot
     std::vector<Row> m_rows;
     std::shared_ptr<Job> m_job;
     std::string m_status;

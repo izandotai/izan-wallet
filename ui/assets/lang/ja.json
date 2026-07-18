@@ -49,7 +49,7 @@
     "send.gas": "ガス",
     "send.fee_max": "手数料上限",
     "send.total_max": "合計（上限）",
-    "send.confirm": "提案を作成",
+    "send.confirm": "承認して送信",
     "send.back": "戻る",
     "send.proposal": "提案",
     "send.passphrase": "パスフレーズ",
@@ -93,5 +93,10 @@
     "ui.back": "戻る",
     "ui.copied": "コピーしました",
     "vault.warn.backup.key": "この秘密鍵を知っている人は誰でもこのウォレットの資産を動かせます。絶対に共有しないでください。",
-    "wallet.account.add": "新しいアドレスを導出"
+    "wallet.account.add": "新しいアドレスを導出",
+    "send.review_send": "内容を確認",
+    "ui.done": "完了",
+    "portfolio.lookup": "アドレスを検索",
+    "portfolio.mine": "自分の資産",
+    "portfolio.empty": "ウォレットを解錠すると資産が表示されます。"
 }
