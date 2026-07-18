@@ -99,5 +99,8 @@
     "portfolio.empty": "Desbloquea una cartera para ver sus activos.",
     "ui.paste": "Pegar",
     "ui.copy_action": "Copiar",
-    "ui.clear": "Borrar"
+    "ui.clear": "Borrar",
+    "menu.layout": "Disposición",
+    "layout.workbench": "Banco de trabajo",
+    "layout.classic": "Columnas clásicas"
 }

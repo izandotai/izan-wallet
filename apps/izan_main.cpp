@@ -51,6 +51,42 @@ struct Settings {
     std::vector<float> dock_panes;
 };
 
+// The dock templates the View menu offers. Building one replaces the
+// whole arrangement: 0 = workbench (wallets over send in the left
+// column, the vault center stage over the assets shelf), 1 = classic
+// three columns (vault flanked by wallets and a stacked right rail).
+void apply_dock_template(ImGuiID dockspace, const ImVec2& size, int tpl)
+{
+    ImGui::DockBuilderRemoveNode(dockspace);
+    ImGui::DockBuilderAddNode(dockspace, ImGuiDockNodeFlags_DockSpace);
+    ImGui::DockBuilderSetNodeSize(dockspace, size);
+    ImGuiID center = dockspace;
+    if (tpl == 1) {
+        const ImGuiID left = ImGui::DockBuilderSplitNode(
+            center, ImGuiDir_Left, 0.20f, nullptr, &center);
+        ImGuiID right = ImGui::DockBuilderSplitNode(
+            center, ImGuiDir_Right, 0.32f, nullptr, &center);
+        const ImGuiID right_bottom = ImGui::DockBuilderSplitNode(
+            right, ImGuiDir_Down, 0.5f, nullptr, &right);
+        ImGui::DockBuilderDockWindow("###wallet-list", left);
+        ImGui::DockBuilderDockWindow("###vault-page", center);
+        ImGui::DockBuilderDockWindow("###portfolio-page", right);
+        ImGui::DockBuilderDockWindow("###send-page", right_bottom);
+    } else {
+        ImGuiID left = ImGui::DockBuilderSplitNode(
+            center, ImGuiDir_Left, 0.27f, nullptr, &center);
+        const ImGuiID left_bottom = ImGui::DockBuilderSplitNode(
+            left, ImGuiDir_Down, 0.48f, nullptr, &left);
+        const ImGuiID bottom = ImGui::DockBuilderSplitNode(
+            center, ImGuiDir_Down, 0.40f, nullptr, &center);
+        ImGui::DockBuilderDockWindow("###wallet-list", left);
+        ImGui::DockBuilderDockWindow("###send-page", left_bottom);
+        ImGui::DockBuilderDockWindow("###vault-page", center);
+        ImGui::DockBuilderDockWindow("###portfolio-page", bottom);
+    }
+    ImGui::DockBuilderFinish(dockspace);
+}
+
 ui::LayoutState layout_state_of(const Settings& s)
 {
     return { s.window_w, s.window_h, s.window_maximized, s.layout,
@@ -235,8 +271,16 @@ int main(int argc, char** argv)
         // pairs, and popping would write the old theme's colors right
         // back over a style applied mid-callback.
         int pending_theme = -1;
+        int pending_layout = -1;
         ui::draw_custom_menu_bar(chrome, [&] {
             if (ImGui::BeginMenu(tr("menu.view"))) {
+                if (ImGui::BeginMenu(tr("menu.layout"))) {
+                    if (ImGui::MenuItem(tr("layout.workbench")))
+                        pending_layout = 0;
+                    if (ImGui::MenuItem(tr("layout.classic")))
+                        pending_layout = 1;
+                    ImGui::EndMenu();
+                }
                 if (ImGui::BeginMenu(tr("menu.theme"))) {
                     for (int i = 0; i < int(ui::kThemeNames.size()); ++i) {
                         if (ImGui::MenuItem(ui::kThemeNames[i], nullptr,
@@ -287,32 +331,18 @@ int main(int argc, char** argv)
                 | ImGuiWindowFlags_NoSavedSettings);
         const ImGuiID dockspace = ImGui::GetID("izan-dockspace");
         const ImVec2 dock_size = ImGui::GetContentRegionAvail();
-        // First run only (no saved layout): lay the workbench out the
-        // way hands expect it — wallets in a narrow left column, the
-        // vault detail center stage, assets and send stacked right.
-        // Every run after this belongs to the user's own arrangement.
-        // Built on the second frame: the windows must have submitted
-        // once or their empty dock nodes collapse before they arrive.
+        // First run (no saved layout): build the workbench template.
+        // Every run after this belongs to the user's own arrangement —
+        // until they pick a template from the View menu, which rebuilds
+        // on the spot. Built on the second frame at the earliest: the
+        // windows must have submitted once or their empty dock nodes
+        // collapse before they arrive.
         static int dock_frame = 0;
-        if (dock_frame < 2 && ++dock_frame == 2) {
-            if (settings.layout.empty()) {
-                ImGui::DockBuilderRemoveNode(dockspace);
-                ImGui::DockBuilderAddNode(
-                    dockspace, ImGuiDockNodeFlags_DockSpace);
-                ImGui::DockBuilderSetNodeSize(dockspace, dock_size);
-                ImGuiID center = dockspace;
-                const ImGuiID left = ImGui::DockBuilderSplitNode(
-                    center, ImGuiDir_Left, 0.20f, nullptr, &center);
-                ImGuiID right = ImGui::DockBuilderSplitNode(
-                    center, ImGuiDir_Right, 0.32f, nullptr, &center);
-                const ImGuiID right_bottom = ImGui::DockBuilderSplitNode(
-                    right, ImGuiDir_Down, 0.5f, nullptr, &right);
-                ImGui::DockBuilderDockWindow("###wallet-list", left);
-                ImGui::DockBuilderDockWindow("###vault-page", center);
-                ImGui::DockBuilderDockWindow("###portfolio-page", right);
-                ImGui::DockBuilderDockWindow("###send-page", right_bottom);
-                ImGui::DockBuilderFinish(dockspace);
-            }
+        if (dock_frame < 2 && ++dock_frame == 2 && settings.layout.empty())
+            pending_layout = 0;
+        if (pending_layout >= 0 && dock_frame >= 2) {
+            ui::dock_ledger_import({}); // the old anchors died with the tree
+            apply_dock_template(dockspace, dock_size, pending_layout);
         }
         static int dump_frame = 0;
         ++dump_frame;

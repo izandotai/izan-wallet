@@ -99,5 +99,8 @@
     "portfolio.empty": "ウォレットを解錠すると資産が表示されます。",
     "ui.paste": "貼り付け",
     "ui.copy_action": "コピー",
-    "ui.clear": "クリア"
+    "ui.clear": "クリア",
+    "menu.layout": "レイアウト",
+    "layout.workbench": "ワークベンチ",
+    "layout.classic": "クラシック3列"
 }

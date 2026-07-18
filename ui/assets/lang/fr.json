@@ -99,5 +99,8 @@
     "portfolio.empty": "Déverrouillez un portefeuille pour voir ses actifs.",
     "ui.paste": "Coller",
     "ui.copy_action": "Copier",
-    "ui.clear": "Effacer"
+    "ui.clear": "Effacer",
+    "menu.layout": "Disposition",
+    "layout.workbench": "Établi",
+    "layout.classic": "Colonnes classiques"
 }

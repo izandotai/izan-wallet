@@ -99,5 +99,8 @@
     "portfolio.empty": "Разблокируйте кошелёк, чтобы увидеть активы.",
     "ui.paste": "Вставить",
     "ui.copy_action": "Копировать",
-    "ui.clear": "Очистить"
+    "ui.clear": "Очистить",
+    "menu.layout": "Макет",
+    "layout.workbench": "Верстак",
+    "layout.classic": "Классические колонки"
 }

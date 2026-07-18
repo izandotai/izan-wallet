@@ -99,5 +99,8 @@
     "portfolio.empty": "解锁钱包后自动显示资产。",
     "ui.paste": "粘贴",
     "ui.copy_action": "复制",
-    "ui.clear": "清除"
+    "ui.clear": "清除",
+    "menu.layout": "布局",
+    "layout.workbench": "工作台",
+    "layout.classic": "经典三栏"
 }

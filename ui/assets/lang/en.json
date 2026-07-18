@@ -99,5 +99,8 @@
     "portfolio.empty": "Unlock a wallet to see its assets.",
     "ui.paste": "Paste",
     "ui.copy_action": "Copy",
-    "ui.clear": "Clear"
+    "ui.clear": "Clear",
+    "menu.layout": "Layout",
+    "layout.workbench": "Workbench",
+    "layout.classic": "Classic columns"
 }

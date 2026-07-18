@@ -99,5 +99,8 @@
     "portfolio.empty": "Sblocca un portafoglio per vedere i suoi asset.",
     "ui.paste": "Incolla",
     "ui.copy_action": "Copia",
-    "ui.clear": "Cancella"
+    "ui.clear": "Cancella",
+    "menu.layout": "Disposizione",
+    "layout.workbench": "Banco di lavoro",
+    "layout.classic": "Colonne classiche"
 }
