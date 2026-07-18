@@ -68,7 +68,7 @@
     "ui.copy": "Clic per copiare",
     "wallet.list": "Portafoglio",
     "wallet.name": "Nome",
-    "wallet.err.name": "Nome non valido o già in uso (solo A-Z, 0-9, - e _).",
+    "wallet.err.name": "Nome non valido o già in uso.",
     "vault.secret_in": "Frase di recupero o chiave privata",
     "vault.kind.hd": "Portafoglio HD",
     "vault.kind.key": "Portafoglio a chiave privata",

@@ -68,7 +68,7 @@
     "ui.copy": "Click to copy",
     "wallet.list": "Wallet",
     "wallet.name": "Name",
-    "wallet.err.name": "Invalid or duplicate name (A-Z, 0-9, - and _).",
+    "wallet.err.name": "Invalid or duplicate name.",
     "vault.secret_in": "Recovery phrase or private key",
     "vault.kind.hd": "HD wallet",
     "vault.kind.key": "Private-key wallet",

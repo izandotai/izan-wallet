@@ -13,6 +13,7 @@
 
 #include "core/crypto/bip39.hpp"
 #include "core/secure/vault.hpp"
+#include "domain/config/config_trust.hpp"
 #include "keyd/signer.hpp"
 #include "ui/shell/ime.hpp"
 
@@ -25,12 +26,39 @@ namespace {
     constexpr ImGuiInputTextFlags kSecretField
         = ImGuiInputTextFlags_Password | ImGuiInputTextFlags_AutoSelectAll;
 
-    // Sidecar for the HD account line (public data): how many accounts
-    // the user opened and which is selected.
+    // Sidecar beside each vault file (public data): the display name
+    // and the HD account line — how many accounts the user opened and
+    // which is selected.
     struct AccountsMeta {
+        std::string name;
         uint32_t count = 1;
         uint32_t active = 0;
     };
+
+    AccountsMeta read_meta_file(const std::filesystem::path& path)
+    {
+        AccountsMeta meta;
+        std::ifstream f(path, std::ios::binary);
+        if (!f)
+            return meta;
+        std::ostringstream buf;
+        buf << f.rdbuf();
+        AccountsMeta parsed;
+        if (!glz::read<glz::opts { .error_on_unknown_keys = false }>(
+                parsed, buf.str()))
+            meta = parsed;
+        return meta;
+    }
+
+    void write_meta_file(
+        const std::filesystem::path& path, const AccountsMeta& meta)
+    {
+        std::string out;
+        if (glz::write<glz::opts { .prettify = true }>(meta, out))
+            return;
+        std::ofstream f(path, std::ios::binary | std::ios::trunc);
+        f << out;
+    }
 
     std::string_view trimmed(std::string_view text)
     {
@@ -90,10 +118,9 @@ VaultPage::VaultPage(std::filesystem::path wallets_dir, std::string exe_path,
         m_mode = Mode::NoWallets;
         return;
     }
-    const bool known
-        = std::find(m_wallets.begin(), m_wallets.end(), initial_active)
-        != m_wallets.end();
-    switch_active(known ? initial_active : m_wallets.front());
+    const bool known = std::any_of(m_wallets.begin(), m_wallets.end(),
+        [&](const WalletEntry& w) { return w.id == initial_active; });
+    switch_active(known ? initial_active : m_wallets.front().id);
 }
 
 VaultPage::~VaultPage()
@@ -108,32 +135,45 @@ void VaultPage::rescan_wallets()
     m_wallets.clear();
     std::error_code ec;
     for (const auto& entry : std::filesystem::directory_iterator(m_dir, ec)) {
-        if (entry.path().extension() == ".qvlt")
-            m_wallets.push_back(entry.path().stem().string());
+        if (entry.path().extension() != ".qvlt")
+            continue;
+        const std::string id = entry.path().stem().string();
+        AccountsMeta meta = read_meta_file(m_dir / (id + ".accounts.json"));
+        // Pre-sidecar wallets (the migrated "main") display their id.
+        m_wallets.push_back({ id, meta.name.empty() ? id : meta.name });
     }
-    std::sort(m_wallets.begin(), m_wallets.end());
+    std::sort(m_wallets.begin(), m_wallets.end(),
+        [](const WalletEntry& a, const WalletEntry& b) {
+            return a.name < b.name;
+        });
 }
 
-std::string VaultPage::wallet_path(const std::string& name) const
+std::string VaultPage::wallet_path(const std::string& id) const
 {
-    return (m_dir / (name + ".qvlt")).string();
+    return (m_dir / (id + ".qvlt")).string();
 }
 
-bool VaultPage::valid_new_name(std::string_view name) const
+std::string VaultPage::new_wallet_id(std::string_view display)
 {
-    if (name.empty() || name.size() > 32)
+    uint8_t salt[8];
+    randombytes_buf(salt, sizeof salt);
+    std::string seed(display);
+    seed.append(reinterpret_cast<const char*>(salt), sizeof salt);
+    return config::sha256_hex(seed).substr(0, 16);
+}
+
+bool VaultPage::valid_new_name(std::string_view display) const
+{
+    if (display.empty() || display.size() > 48)
         return false;
-    for (const char c : name) {
-        const bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
-            || (c >= '0' && c <= '9') || c == '-' || c == '_';
-        if (!ok)
+    for (const char c : display)
+        if (uint8_t(c) < 0x20)
             return false;
-    }
-    return std::find(m_wallets.begin(), m_wallets.end(), name)
-        == m_wallets.end();
+    return std::none_of(m_wallets.begin(), m_wallets.end(),
+        [&](const WalletEntry& w) { return w.name == display; });
 }
 
-void VaultPage::switch_active(const std::string& name)
+void VaultPage::switch_active(const std::string& id)
 {
     if (m_keyd) {
         m_keyd->shutdown();
@@ -143,8 +183,8 @@ void VaultPage::switch_active(const std::string& name)
     m_account_addrs.clear();
     m_status.clear();
     m_unlocked = false;
-    m_active = name;
-    m_vault_path = wallet_path(name);
+    m_active = id;
+    m_vault_path = wallet_path(id);
     load_accounts_meta();
     m_mode = std::filesystem::exists(m_vault_path) ? Mode::Locked
                                                    : Mode::NoWallets;
@@ -152,30 +192,17 @@ void VaultPage::switch_active(const std::string& name)
 
 void VaultPage::load_accounts_meta()
 {
-    m_account_count = 1;
-    m_account_active = 0;
-    AccountsMeta meta;
-    std::ifstream f(m_dir / (m_active + ".accounts.json"), std::ios::binary);
-    if (!f)
-        return;
-    std::ostringstream buf;
-    buf << f.rdbuf();
-    if (!glz::read<glz::opts { .error_on_unknown_keys = false }>(
-            meta, buf.str())) {
-        m_account_count = meta.count > 0 ? meta.count : 1;
-        m_account_active = meta.active < m_account_count ? meta.active : 0;
-    }
+    const AccountsMeta meta
+        = read_meta_file(m_dir / (m_active + ".accounts.json"));
+    m_active_name = meta.name.empty() ? m_active : meta.name;
+    m_account_count = meta.count > 0 ? meta.count : 1;
+    m_account_active = meta.active < m_account_count ? meta.active : 0;
 }
 
 void VaultPage::save_accounts_meta() const
 {
-    AccountsMeta meta { m_account_count, m_account_active };
-    std::string out;
-    if (glz::write<glz::opts { .prettify = true }>(meta, out))
-        return;
-    std::ofstream f(m_dir / (m_active + ".accounts.json"),
-        std::ios::binary | std::ios::trunc);
-    f << out;
+    write_meta_file(m_dir / (m_active + ".accounts.json"),
+        { m_active_name, m_account_count, m_account_active });
 }
 
 void VaultPage::refresh_addresses()
@@ -326,11 +353,13 @@ void VaultPage::draw_selector(const i18n::Catalog& tr)
     const bool busy = m_job != nullptr;
     ImGui::BeginDisabled(busy);
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * 12.0f);
-    if (ImGui::BeginCombo(tr("wallet.list"), m_active.c_str())) {
-        for (const std::string& name : m_wallets) {
-            if (ImGui::Selectable(name.c_str(), name == m_active)
-                && name != m_active)
-                switch_active(name);
+    if (ImGui::BeginCombo(tr("wallet.list"), m_active_name.c_str())) {
+        for (const WalletEntry& w : m_wallets) {
+            ImGui::PushID(w.id.c_str());
+            if (ImGui::Selectable(w.name.c_str(), w.id == m_active)
+                && w.id != m_active)
+                switch_active(w.id);
+            ImGui::PopID();
         }
         ImGui::EndCombo();
     }
@@ -402,18 +431,22 @@ void VaultPage::draw_create_form(const i18n::Catalog& tr)
             SecureBytes pass = take_secret(m_pass);
             sodium_memzero(m_confirm.data(), m_confirm.size());
 
+            const std::string id = new_wallet_id(name);
             auto job = std::make_shared<Job>();
             job->next = Mode::ShowSecret;
-            job->wallet = name;
+            job->wallet = id;
             m_job = job;
-            std::thread([job, pass = std::move(pass),
-                            path = wallet_path(name)]() mutable {
+            std::thread([job, pass = std::move(pass), name,
+                            path = wallet_path(id),
+                            metaPath
+                            = m_dir / (id + ".accounts.json")]() mutable {
                 try {
                     vault::Wallet wallet;
                     wallet.entropy = SecureBytes(16);
                     randombytes_buf(
                         wallet.entropy.data(), wallet.entropy.size());
                     vault::save(path, pass, wallet, vault::kdf_sensitive());
+                    write_meta_file(metaPath, { name, 1, 0 });
                     job->secret = crypto::entropy_to_mnemonic(wallet.entropy);
                     job->phase.store(1);
                 } catch (const std::exception& e) {
@@ -490,13 +523,15 @@ void VaultPage::draw_import_form(const i18n::Catalog& tr)
             sodium_memzero(m_confirm.data(), m_confirm.size());
             sodium_memzero(m_mnemonic_in.data(), m_mnemonic_in.size());
 
+            const std::string id = new_wallet_id(name);
             auto job = std::make_shared<Job>();
             job->next = Mode::Locked;
-            job->wallet = name;
+            job->wallet = id;
             m_job = job;
-            std::thread([job, pass = std::move(pass),
-                            wallet = std::move(wallet),
-                            path = wallet_path(name)]() mutable {
+            std::thread([job, pass = std::move(pass), name,
+                            wallet = std::move(wallet), path = wallet_path(id),
+                            metaPath
+                            = m_dir / (id + ".accounts.json")]() mutable {
                 try {
                     // Prove the wallet can actually sign before it is
                     // allowed to exist — this is where an out-of-range
@@ -504,6 +539,7 @@ void VaultPage::draw_import_form(const i18n::Catalog& tr)
                     const std::vector<uint8_t> probe { 0x69 };
                     (void)keyd::sign_payload(wallet, probe);
                     vault::save(path, pass, wallet, vault::kdf_sensitive());
+                    write_meta_file(metaPath, { name, 1, 0 });
                     job->phase.store(1);
                 } catch (const std::exception& e) {
                     job->error = e.what();

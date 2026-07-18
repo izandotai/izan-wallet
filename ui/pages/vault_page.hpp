@@ -95,16 +95,24 @@ private:
     void draw_unlocked(const i18n::Catalog& tr);
     void poll_job();
 
+    // A wallet's display name is anything the user likes, in any
+    // script; its FILE name is a 16-hex id minted once at creation
+    // (sha-256 of name plus random salt) — filesystem-safe forever,
+    // stable across renames, collision-free across equal names. The
+    // display name lives in the accounts sidecar.
+    struct WalletEntry {
+        std::string id;
+        std::string name;
+    };
+
     void rescan_wallets();
-    void switch_active(const std::string& name);
+    void switch_active(const std::string& id);
     void load_accounts_meta();
     void save_accounts_meta() const;
     void refresh_addresses(); // account list, via keyd, while unlocked
-    // A fresh wallet's file name: ASCII letters, digits, dash and
-    // underscore only — vault paths travel through narrow-string APIs
-    // where anything fancier depends on the system code page.
-    bool valid_new_name(std::string_view name) const;
-    std::string wallet_path(const std::string& name) const;
+    bool valid_new_name(std::string_view display) const;
+    static std::string new_wallet_id(std::string_view display);
+    std::string wallet_path(const std::string& id) const;
 
     // Moves the buffer contents into guarded memory and wipes it.
     secure::SecureBytes take_secret(std::array<char, 256>& buf);
@@ -113,9 +121,10 @@ private:
 
     std::filesystem::path m_dir;
     std::string m_exe_path;
-    std::vector<std::string> m_wallets;
-    std::string m_active;
-    std::string m_vault_path; // of the active wallet
+    std::vector<WalletEntry> m_wallets;
+    std::string m_active;      // id
+    std::string m_active_name; // display
+    std::string m_vault_path;  // of the active wallet
     Mode m_mode = Mode::NoWallets;
     bool m_unlocked = false;
     // The HD account line the user has opened so far: how many, which

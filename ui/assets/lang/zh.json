@@ -68,7 +68,7 @@
     "ui.copy": "点击复制",
     "wallet.list": "钱包",
     "wallet.name": "名称",
-    "wallet.err.name": "名称无效或已存在（仅限字母、数字、- 和 _）。",
+    "wallet.err.name": "名称无效或已存在。",
     "vault.secret_in": "助记词或私钥",
     "vault.kind.hd": "HD 钱包",
     "vault.kind.key": "私钥钱包",

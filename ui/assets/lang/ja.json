@@ -68,7 +68,7 @@
     "ui.copy": "クリックでコピー",
     "wallet.list": "ウォレット",
     "wallet.name": "名前",
-    "wallet.err.name": "名前が無効か既に存在します（半角英数と - _ のみ）。",
+    "wallet.err.name": "名前が無効か既に存在します。",
     "vault.secret_in": "リカバリーフレーズまたは秘密鍵",
     "vault.kind.hd": "HDウォレット",
     "vault.kind.key": "秘密鍵ウォレット",
