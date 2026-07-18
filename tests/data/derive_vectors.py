@@ -299,3 +299,8 @@ print("BIP49  m/49'/0'/0'/0/1 :", p2sh_p2wpkh(btc_pub("m/49'/0'/0'/0/1")))
 print("BIP86  m/86'/0'/0'/0/1 :", p2tr(btc_pub("m/86'/0'/0'/0/1")))
 print("SOL    m/44'/501'/0'/0':", b58(ed_pub(slip10_ed25519(seed, "m/44'/501'/0'/0'"))))
 print("SOL    m/44'/501'/1'/0':", b58(ed_pub(slip10_ed25519(seed, "m/44'/501'/1'/0'"))))
+
+# The 64-byte keypair encoding (seed || pubkey, plain base58) Phantom
+# and solana-keygen export, for the account-0 key above.
+sol0 = slip10_ed25519(seed, "m/44'/501'/0'/0'")
+print("SOL keypair b58        :", b58(sol0 + ed_pub(sol0)))

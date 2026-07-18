@@ -9,6 +9,7 @@
 #include "core/crypto/hd.hpp"
 #include "core/secure/secure_bytes.hpp"
 #include "core/secure/vault.hpp"
+#include "keyd/protocol.hpp"
 
 namespace izan::keyd {
 
@@ -37,6 +38,12 @@ enum class DerivePreset : uint8_t {
 inline constexpr uint8_t kDerivePresetCount = 8;
 
 enum class ChainFamily : uint8_t { Eth, Btc, Sol };
+
+// An imported key's scheme rides its label — vault payload v1 has no
+// type byte, and the label sits inside the encrypted, MAC-protected
+// blob. secp256k1 keys keep the historical "imported"; ed25519 keys
+// (Solana keypairs) carry this.
+inline constexpr const char* kEd25519KeyLabel = "ed25519";
 
 // Which chain a preset speaks for. Total over the registry — an
 // unknown preset never reaches this (parse and UI both bound-check).
@@ -88,9 +95,14 @@ SignedDigest sign_payload(const vault::Wallet& wallet,
     std::span<const uint8_t> tx, uint32_t account = 0,
     DerivePreset preset = DerivePreset::MetaMask);
 
-// The account's EIP-55 address — the same key selection as
-// sign_payload, stopping at the public half.
+// The account's address — the same key selection as sign_payload,
+// stopping at the public half; formatted for the preset's chain.
 std::string account_address(const vault::Wallet& wallet, uint32_t account = 0,
     DerivePreset preset = DerivePreset::MetaMask);
+
+// What a wallet's root secret is, for the RootSecret / AddressIs kind
+// byte: entropy → SeedEntropy, an ed25519-labelled key → Ed25519Key,
+// any other key → PrivateKey.
+RevealKind wallet_reveal_kind(const vault::Wallet& wallet);
 
 }

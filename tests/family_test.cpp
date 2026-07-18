@@ -12,6 +12,7 @@
 
 #include <sodium.h>
 
+#include "core/crypto/secret_import.hpp"
 #include "core/secure/vault.hpp"
 #include "keyd/signer.hpp"
 
@@ -115,6 +116,31 @@ TEST_CASE("a key wallet wears any BTC format but has no Solana self")
     CHECK_THROWS(keyd::account_address(w, 0, DerivePreset::SolPhantom));
     // And a key wallet still has exactly one address.
     CHECK_THROWS(keyd::account_address(w, 1, DerivePreset::BtcSegwit));
+}
+
+TEST_CASE("an ed25519 key wallet lives on Solana and nowhere else")
+{
+    // The zero-mnemonic Phantom account-0 keypair, as an imported key.
+    const auto hit = izan::crypto::detect_secret(
+        "27npWoNE4HfmLeQo1TyWcW7NEA28qnsnDK7kcttDQEWr"
+        "CWnro83HMJ97rMmpvYYZRwDAvG4KRuB7hTBacvwD7bgi");
+    REQUIRE(hit.kind == izan::crypto::SecretKind::SolKey);
+    vault::Wallet w;
+    vault::Imported imp;
+    imp.label = keyd::kEd25519KeyLabel;
+    imp.key = secure::SecureBytes(32);
+    std::memcpy(imp.key.data(), hit.key.data(), 32);
+    w.imported.push_back(std::move(imp));
+
+    CHECK(keyd::wallet_reveal_kind(w) == keyd::RevealKind::Ed25519Key);
+    CHECK(keyd::account_address(w, 0, DerivePreset::SolPhantom)
+        == "HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk");
+    // The same 32 bytes must never moonlight on another curve.
+    CHECK_THROWS(keyd::account_address(w, 0, DerivePreset::MetaMask));
+    CHECK_THROWS(keyd::account_address(w, 0, DerivePreset::BtcSegwit));
+    CHECK_THROWS(keyd::account_address(w, 1, DerivePreset::SolPhantom));
+    const std::vector<uint8_t> tx { 0x02, 0x01 };
+    CHECK_THROWS(keyd::sign_payload(w, tx, 0, DerivePreset::MetaMask));
 }
 
 TEST_CASE("only the EVM family signs transactions for now")

@@ -27,6 +27,12 @@ namespace izan::keyd {
 
 namespace {
 
+    bool holds_ed25519(const vault::Wallet& wallet)
+    {
+        return !wallet.imported.empty()
+            && wallet.imported.front().label == kEd25519KeyLabel;
+    }
+
     crypto::Seed entropy_seed(const secure::SecureBytes& entropy)
     {
         const secure::SecureBytes mnemonic
@@ -175,6 +181,14 @@ ProposalBody parse_proposal(std::span<const uint8_t> payload)
     return body;
 }
 
+RevealKind wallet_reveal_kind(const vault::Wallet& wallet)
+{
+    if (!wallet.entropy.empty())
+        return RevealKind::SeedEntropy;
+    return holds_ed25519(wallet) ? RevealKind::Ed25519Key
+                                 : RevealKind::PrivateKey;
+}
+
 std::vector<uint8_t> make_envelope(
     DerivePreset preset, uint32_t account, std::span<const uint8_t> tx)
 {
@@ -213,6 +227,9 @@ SignedDigest sign_payload(const vault::Wallet& wallet,
         if (account != 0)
             throw std::invalid_argument(
                 "signer: a key wallet has a single address");
+        if (holds_ed25519(wallet))
+            throw std::invalid_argument(
+                "signer: an ed25519 key cannot sign EVM transactions");
         sign_with_raw(wallet.imported.front().key, out.digest, out);
     } else {
         throw std::invalid_argument("signer: wallet holds no signing key");
@@ -236,12 +253,21 @@ std::string account_address(
         if (account != 0)
             throw std::invalid_argument(
                 "signer: a key wallet has a single address");
-        if (family == ChainFamily::Sol)
-            throw std::invalid_argument(
-                "signer: a secp256k1 key has no Solana identity");
         const secure::SecureBytes& key = wallet.imported.front().key;
         if (key.size() != 32)
             throw std::runtime_error("signer: malformed imported key");
+        // The key's scheme decides which families exist for it — the
+        // same 32 bytes must never moonlight on another curve.
+        if (holds_ed25519(wallet)) {
+            if (family != ChainFamily::Sol)
+                throw std::invalid_argument(
+                    "signer: an ed25519 key has no EVM or BTC identity");
+            return crypto::sol_key_address(
+                std::span<const uint8_t, 32>(key.data(), 32));
+        }
+        if (family == ChainFamily::Sol)
+            throw std::invalid_argument(
+                "signer: a secp256k1 key has no Solana identity");
         if (family == ChainFamily::Eth) {
             uint8_t pub[65];
             ecdsa_get_public_key65(&secp256k1, key.data(), pub);

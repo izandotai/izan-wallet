@@ -77,6 +77,7 @@
     "vault.detect.mnemonic": "Фраза восстановления",
     "vault.detect.key": "Приватный ключ",
     "vault.detect.wif": "Приватный ключ WIF",
+    "vault.detect.solkey": "Приватный ключ Solana",
     "vault.detect.none": "Не распознано",
     "wallet.preset": "Схема деривации:",
     "send.err.family": "Этот кошелёк принимает средства в своей сети; отправка пока доступна только для EVM.",

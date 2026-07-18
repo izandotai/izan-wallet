@@ -45,6 +45,9 @@ ImportView::Event ImportView::draw(const i18n::Catalog& tr, bool busy,
     case crypto::SecretKind::Wif:
         ImGui::TextUnformatted(tr("vault.detect.wif"));
         break;
+    case crypto::SecretKind::SolKey:
+        ImGui::TextUnformatted(tr("vault.detect.solkey"));
+        break;
     case crypto::SecretKind::Unrecognized:
         ImGui::TextUnformatted(tr("vault.detect.none"));
         break;

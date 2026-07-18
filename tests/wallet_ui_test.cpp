@@ -136,6 +136,22 @@ TEST_CASE("the import model walks paste, preview and selection")
     model.select(DerivePreset::MetaMask); // not offered for a WIF
     CHECK(model.selected() == uint8_t(DerivePreset::BtcSegwit));
 
+    // A Solana keypair offers exactly one home.
+    model.update("27npWoNE4HfmLeQo1TyWcW7NEA28qnsnDK7kcttDQEWr"
+                 "CWnro83HMJ97rMmpvYYZRwDAvG4KRuB7hTBacvwD7bgi");
+    CHECK(model.kind() == crypto::SecretKind::SolKey);
+    REQUIRE(model.offered().size() == 1);
+    CHECK(model.selected() == uint8_t(DerivePreset::SolPhantom));
+    CHECK(model.preview(DerivePreset::SolPhantom)
+        == "HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk");
+    const auto solWallet
+        = model.build("27npWoNE4HfmLeQo1TyWcW7NEA28qnsnDK7kcttDQEWr"
+                      "CWnro83HMJ97rMmpvYYZRwDAvG4KRuB7hTBacvwD7bgi");
+    REQUIRE(solWallet);
+    REQUIRE(solWallet->imported.size() == 1);
+    CHECK(solWallet->imported.front().label == keyd::kEd25519KeyLabel);
+    CHECK_NOTHROW(ui::prove_wallet(*solWallet, DerivePreset::SolPhantom));
+
     // Garbage clears the offer; build refuses.
     model.update("not a secret");
     CHECK(!model.recognized());

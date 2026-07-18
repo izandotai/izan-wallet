@@ -429,9 +429,7 @@ int child_main(int argc, char** argv)
                     const std::string addr
                         = account_address(*holder->wallet, account, preset);
                     std::vector<uint8_t> body(1 + addr.size());
-                    body[0] = uint8_t(holder->wallet->entropy.empty()
-                            ? RevealKind::PrivateKey
-                            : RevealKind::SeedEntropy);
+                    body[0] = uint8_t(wallet_reveal_kind(*holder->wallet));
                     std::memcpy(body.data() + 1, addr.data(), addr.size());
                     send_op(channel, Op::AddressIs, body.data(), body.size());
                 } catch (const std::exception& e) {
@@ -458,8 +456,7 @@ int child_main(int argc, char** argv)
                         seed ? "vault.reveal.seed" : "vault.reveal.key");
                     std::vector<uint8_t> out(2 + secret.size());
                     out[0] = uint8_t(Op::RootSecret);
-                    out[1] = uint8_t(seed ? RevealKind::SeedEntropy
-                                          : RevealKind::PrivateKey);
+                    out[1] = uint8_t(wallet_reveal_kind(opened));
                     std::memcpy(out.data() + 2, secret.data(), secret.size());
                     channel.send(out.data(), out.size());
                     sodium_memzero(out.data(), out.size());

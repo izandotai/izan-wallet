@@ -35,6 +35,7 @@ std::span<const keyd::DerivePreset> presets_for(crypto::SecretKind kind)
         P::BtcNestedSegwit, P::BtcSegwit, P::BtcTaproot };
     static constexpr P kWif[]
         = { P::BtcLegacy, P::BtcNestedSegwit, P::BtcSegwit, P::BtcTaproot };
+    static constexpr P kSolKey[] = { P::SolPhantom };
     switch (kind) {
     case crypto::SecretKind::Mnemonic:
         return kMnemonic;
@@ -42,6 +43,8 @@ std::span<const keyd::DerivePreset> presets_for(crypto::SecretKind kind)
         return kRawKey;
     case crypto::SecretKind::Wif:
         return kWif;
+    case crypto::SecretKind::SolKey:
+        return kSolKey;
     case crypto::SecretKind::Unrecognized:
         break;
     }

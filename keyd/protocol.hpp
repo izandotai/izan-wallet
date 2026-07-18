@@ -52,6 +52,7 @@ enum class Op : uint8_t {
 enum class RevealKind : uint8_t {
     SeedEntropy = 0, // BIP-39 entropy (16/32); regenerate the mnemonic
     PrivateKey = 1,  // raw secp256k1 key (32)
+    Ed25519Key = 2,  // ed25519 seed (32); show as base58(seed||pubkey)
 };
 
 inline constexpr std::size_t kSignedBodyBytes = 65;

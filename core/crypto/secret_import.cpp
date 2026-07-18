@@ -5,6 +5,7 @@
 
 #include "core/crypto/bip39.hpp"
 #include "core/crypto/btc.hpp"
+#include "core/crypto/sol.hpp"
 
 namespace izan::crypto {
 
@@ -68,6 +69,9 @@ DetectedSecret detect_secret(std::string_view text)
         out.key = std::move(*key);
     } else if (auto key = wif_to_key(body)) {
         out.kind = SecretKind::Wif;
+        out.key = std::move(*key);
+    } else if (auto key = sol_key_from_base58(body)) {
+        out.kind = SecretKind::SolKey;
         out.key = std::move(*key);
     }
     return out;

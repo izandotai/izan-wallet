@@ -27,7 +27,11 @@ namespace {
             wallet.entropy = crypto::mnemonic_to_entropy(trimmed(text));
         } else {
             vault::Imported imp;
-            imp.label = "imported";
+            // The label carries the key's scheme into the vault; the
+            // signer refuses to let it moonlight on another curve.
+            imp.label = hit.kind == crypto::SecretKind::SolKey
+                ? keyd::kEd25519KeyLabel
+                : "imported";
             imp.key = secure::SecureBytes(hit.key.size());
             std::memcpy(imp.key.data(), hit.key.data(), hit.key.size());
             wallet.imported.push_back(std::move(imp));

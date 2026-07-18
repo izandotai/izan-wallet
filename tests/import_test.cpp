@@ -5,9 +5,11 @@
 #include <doctest/doctest.h>
 
 #include <cstring>
+#include <span>
 #include <string>
 
 #include "core/crypto/secret_import.hpp"
+#include "core/crypto/sol.hpp"
 
 using izan::crypto::detect_secret;
 using izan::crypto::SecretKind;
@@ -76,6 +78,32 @@ TEST_CASE("a WIF string decodes to the same key its hex form carries")
     std::string tampered(kKeyWif);
     tampered[10] = tampered[10] == 'D' ? 'E' : 'D';
     CHECK(detect_secret(tampered).kind == SecretKind::Unrecognized);
+}
+
+TEST_CASE("a Solana keypair decodes to its seed, an address does not")
+{
+    // base58(seed || pubkey) for the zero-mnemonic Phantom account 0 —
+    // the pubkey half must match the seed, which is the integrity
+    // check no checksum could give.
+    const char* keypair = "27npWoNE4HfmLeQo1TyWcW7NEA28qnsnDK7kcttDQEWr"
+                          "CWnro83HMJ97rMmpvYYZRwDAvG4KRuB7hTBacvwD7bgi";
+    const auto hit = detect_secret(keypair);
+    REQUIRE(hit.kind == SecretKind::SolKey);
+    REQUIRE(hit.key.size() == 32);
+
+    // The same 64 bytes with a corrupted digit: pubkey mismatch, refused.
+    std::string bad(keypair);
+    bad[40] = bad[40] == 'M' ? 'N' : 'M';
+    CHECK(detect_secret(bad).kind == SecretKind::Unrecognized);
+
+    // A Solana ADDRESS is 32 bytes of base58 — never a key.
+    CHECK(detect_secret("HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk").kind
+        == SecretKind::Unrecognized);
+
+    // Backup round-trip: seed → base58(seed||pub) → the original text.
+    const izan::secure::SecureBytes enc = izan::crypto::sol_key_to_base58(
+        std::span<const uint8_t, 32>(hit.key.data(), 32));
+    CHECK(std::string(reinterpret_cast<const char*>(enc.data())) == keypair);
 }
 
 TEST_CASE("anything else is refused")

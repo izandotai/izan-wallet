@@ -8,6 +8,7 @@
 #include <sodium.h>
 
 #include "core/crypto/bip39.hpp"
+#include "core/crypto/sol.hpp"
 #include "core/secure/vault.hpp"
 #include "keyd/signer.hpp"
 #include "ui/shell/ime.hpp"
@@ -344,9 +345,16 @@ void VaultPage::start_backup(SecureBytes pass)
             job->secret_kind = revealed->kind;
             if (revealed->kind == keyd::RevealKind::SeedEntropy) {
                 job->secret = crypto::entropy_to_mnemonic(revealed->secret);
+            } else if (revealed->kind == keyd::RevealKind::Ed25519Key
+                && revealed->secret.size() == 32) {
+                // Solana key wallet: back up in the same base58
+                // keypair encoding it was imported from, so it pastes
+                // straight back into Phantom.
+                job->secret = crypto::sol_key_to_base58(
+                    std::span<const uint8_t, 32>(revealed->secret.data(), 32));
             } else {
-                // Key-only wallet: the backup is the key itself, shown
-                // as hex in guarded memory.
+                // secp256k1 key wallet: the backup is the key itself,
+                // shown as hex in guarded memory.
                 SecureBytes hex(2 + revealed->secret.size() * 2 + 1);
                 std::memcpy(hex.data(), "0x", 2);
                 sodium_bin2hex(reinterpret_cast<char*>(hex.data()) + 2,

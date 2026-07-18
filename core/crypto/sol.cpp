@@ -11,6 +11,7 @@ extern "C" {
 #pragma GCC diagnostic pop
 #include <base58.h>
 #include <curves.h>
+#include <ed25519-donna/ed25519.h>
 #include <memzero.h>
 }
 
@@ -49,6 +50,54 @@ std::string sol_address(std::span<const uint8_t, 32> pubkey)
     if (!b58enc(buf, &size, pubkey.data(), pubkey.size()))
         return {};
     return buf;
+}
+
+std::string sol_key_address(std::span<const uint8_t, 32> seed)
+{
+    uint8_t pub[32];
+    ed25519_publickey(seed.data(), pub);
+    const std::string addr = sol_address(std::span<const uint8_t, 32>(pub, 32));
+    memzero(pub, sizeof pub);
+    return addr;
+}
+
+std::optional<secure::SecureBytes> sol_key_from_base58(std::string_view text)
+{
+    // 64 bytes land at 86–88 base58 digits (fewer only with leading
+    // zero bytes, which a real keypair does not have).
+    if (text.size() < 80 || text.size() > 96)
+        return std::nullopt;
+    const std::string z(text); // decode wants a terminator
+    uint8_t raw[64];
+    size_t size = sizeof raw;
+    const bool decoded = b58tobin(raw, &size, z.c_str()) && size == 64;
+    std::optional<secure::SecureBytes> out;
+    if (decoded) {
+        uint8_t pub[32];
+        ed25519_publickey(raw, pub);
+        if (std::equal(pub, pub + 32, raw + 32)) {
+            out.emplace(32);
+            std::copy_n(raw, 32, out->data());
+        }
+        memzero(pub, sizeof pub);
+    }
+    memzero(raw, sizeof raw);
+    return out;
+}
+
+secure::SecureBytes sol_key_to_base58(std::span<const uint8_t, 32> seed)
+{
+    uint8_t raw[64];
+    std::copy_n(seed.data(), 32, raw);
+    ed25519_publickey(raw, raw + 32);
+    secure::SecureBytes out(96);
+    size_t size = out.size();
+    const bool ok
+        = b58enc(reinterpret_cast<char*>(out.data()), &size, raw, sizeof raw);
+    memzero(raw, sizeof raw);
+    if (!ok)
+        return {};
+    return out;
 }
 
 SolKey::~SolKey()

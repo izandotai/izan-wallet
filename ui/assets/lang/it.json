@@ -77,6 +77,7 @@
     "vault.detect.mnemonic": "Frase di recupero",
     "vault.detect.key": "Chiave privata",
     "vault.detect.wif": "Chiave privata WIF",
+    "vault.detect.solkey": "Chiave privata Solana",
     "vault.detect.none": "Non riconosciuto",
     "wallet.preset": "Derivazione:",
     "send.err.family": "Questo portafoglio riceve sulla propria catena; l'invio per ora è solo EVM.",
