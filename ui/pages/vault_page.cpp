@@ -14,7 +14,6 @@
 #include "ui/shell/ime.hpp"
 #include "ui/wallet/import_model.hpp"
 #include "ui/wallet/presets.hpp"
-#include "ui/widgets/design.hpp"
 #include "ui/widgets/kit.hpp"
 
 namespace izan::ui {
@@ -205,7 +204,7 @@ void VaultPage::draw(GLFWwindow* window, const i18n::Catalog& tr)
 
     switch (m_mode) {
     case Mode::NoWallets:
-        ImGui::TextDisabled("%s", m_store.dir().string().c_str());
+        kit_empty_state("👛", m_store.dir().string().c_str());
         break;
     case Mode::CreateForm:
         start_create(m_create.draw(tr, busy, m_secret_focus, m_store));

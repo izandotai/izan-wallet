@@ -6,8 +6,6 @@
 #include <sodium.h>
 
 #include "ui/wallet/presets.hpp"
-#include "ui/widgets/design.hpp"
-#include "ui/widgets/dialog.hpp"
 #include "ui/widgets/kit.hpp"
 
 namespace izan::ui {
@@ -37,58 +35,18 @@ WalletListView::Event WalletListView::draw(const i18n::Catalog& tr, bool busy,
         ImGui::PushID(w.id.c_str());
         const bool is_active = w.id == active_id;
 
-        // A source-list row, composed by hand: rounded selection
-        // highlight, avatar, name over subtitle, a lock dot trailing.
-        const float row_h = em * design().list_row_height;
-        const ImVec2 pos = ImGui::GetCursorScreenPos();
-        const float row_w = ImGui::GetContentRegionAvail().x;
-        if (ImGui::InvisibleButton("##row", ImVec2(row_w, row_h))
-            && !is_active) {
-            ev.type = Event::Type::Activate;
-            ev.id = w.id;
-        }
-        const bool hovered = ImGui::IsItemHovered();
-        ImDrawList* draw = ImGui::GetWindowDrawList();
-        if (is_active || hovered)
-            draw->AddRectFilled(pos, ImVec2(pos.x + row_w, pos.y + row_h),
-                ImGui::GetColorU32(
-                    is_active ? ImGuiCol_Header : ImGuiCol_HeaderHovered,
-                    is_active ? 1.0f : 0.55f),
-                em * design().selection_radius);
-
-        const float avatar = em * design().list_avatar;
-        kit_avatar_at(
-            ImVec2(pos.x + em * 0.35f, pos.y + (row_h - avatar) * 0.5f),
-            w.name.c_str(), avatar);
-
-        const float text_x = pos.x + em * 0.35f + avatar + em * 0.45f;
         std::string subtitle = kind_badge(tr, w.kind);
         if (w.count > 1) {
             if (!subtitle.empty())
                 subtitle += " · ";
             subtitle += std::to_string(w.count);
         }
-        const float name_y = subtitle.empty() ? pos.y + (row_h - em) * 0.5f
-                                              : pos.y + em * 0.28f;
-        draw->AddText(ImVec2(text_x, name_y), ImGui::GetColorU32(ImGuiCol_Text),
-            w.name.c_str());
-        if (!subtitle.empty()) {
-            ImGui::PushFont(nullptr, kit_caption_size());
-            draw->AddText(ImGui::GetFont(), kit_caption_size(),
-                ImVec2(text_x, name_y + em * 1.05f),
-                ImGui::GetColorU32(ImGuiCol_TextDisabled), subtitle.c_str());
-            ImGui::PopFont();
+        if (kit_list_row("##row", w.name.c_str(), subtitle.c_str(), is_active,
+                is_active && active_unlocked)
+            && !is_active) {
+            ev.type = Event::Type::Activate;
+            ev.id = w.id;
         }
-
-        // Trailing lock state: filled accent dot when this wallet is
-        // open, a quiet ring otherwise.
-        const ImVec2 dot(pos.x + row_w - em * 0.7f, pos.y + row_h * 0.5f);
-        if (is_active && active_unlocked)
-            draw->AddCircleFilled(
-                dot, em * 0.16f, ImGui::GetColorU32(kit_accent()));
-        else
-            draw->AddCircle(dot, em * 0.16f,
-                ImGui::GetColorU32(ImGuiCol_TextDisabled, 0.7f));
 
         if (ImGui::BeginPopupContextItem("##card-menu")) {
             // The click that opened this menu leaves a keyboard-nav

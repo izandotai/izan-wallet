@@ -5,9 +5,7 @@
 #include <imgui.h>
 #include <sodium.h>
 
-#include "ui/widgets/design.hpp"
 #include "ui/widgets/kit.hpp"
-#include "ui/widgets/secret_field.hpp"
 
 namespace izan::ui {
 

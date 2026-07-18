@@ -315,10 +315,24 @@ if(IZAN_BUILD_UI AND WIN32)
         ui/pages/vault/list_view.cpp
         ui/pages/vault/secret_view.cpp
         ui/pages/vault/unlock_view.cpp
+        ui/widgets/avatar.cpp
+        ui/widgets/button.cpp
+        ui/widgets/card.cpp
+        ui/widgets/choice_row.cpp
+        ui/widgets/copy_text.cpp
         ui/widgets/design.cpp
         ui/widgets/dialog.cpp
-        ui/widgets/kit.cpp
-        ui/widgets/secret_field.cpp
+        ui/widgets/empty_state.cpp
+        ui/widgets/label.cpp
+        ui/widgets/list_row.cpp
+        ui/widgets/pill.cpp
+        ui/widgets/select.cpp
+        ui/widgets/spinner.cpp
+        ui/widgets/step_dots.cpp
+        ui/widgets/table.cpp
+        ui/widgets/text_field.cpp
+        ui/widgets/toggle.cpp
+        ui/widgets/tooltip.cpp
     )
     target_link_libraries(izan PRIVATE izan_ui_shell izan_i18n izan_keyd
         izan_wallet_ui izan_crypto izan_secure izan_domain izan_units

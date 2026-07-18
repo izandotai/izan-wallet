@@ -40,8 +40,6 @@ public:
 private:
     std::array<char, 256> m_pass {};
     std::vector<std::array<char, 48>> m_labels;
-    int m_copied = -1; // row with live "copied" feedback
-    double m_copied_at = 0.0;
     bool m_open_backup = false;
     bool m_focus_backup = false;
 };

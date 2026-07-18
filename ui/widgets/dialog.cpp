@@ -14,12 +14,6 @@ namespace {
         return ImGui::GetFontSize() * design().dialog_width;
     }
 
-    bool dark_theme()
-    {
-        const ImVec4 bg = ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
-        return 0.2126f * bg.x + 0.7152f * bg.y + 0.0722f * bg.z < 0.5f;
-    }
-
     // The depth language painted onto the open dialog window: a faint
     // light falling from the top edge — a solid strip through the
     // rounded corners, then a smooth fade — and a crisp inner
@@ -27,7 +21,7 @@ namespace {
     void paint_window_decor()
     {
         const DesignLanguage& dl = design();
-        if (!dl.dialog_wash || !dark_theme())
+        if (!dl.dialog_wash || !kit_is_dark())
             return; // light themes carry their own brightness
         ImDrawList* draw = ImGui::GetWindowDrawList();
         const ImVec2 min = ImGui::GetWindowPos();
@@ -105,6 +99,10 @@ void kit_dialog_open(const char* id)
 bool kit_dialog_begin(const char* id, bool* dismissed)
 {
     push_dialog_style();
+    // Anchored to the viewport's center every frame — resizing the
+    // host window must not leave the dialog drifting off-axis.
+    ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(),
+        ImGuiCond_Always, ImVec2(0.5f, 0.5f));
     const bool open = ImGui::BeginPopupModal(id, nullptr,
         ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar
             | ImGuiWindowFlags_NoMove);

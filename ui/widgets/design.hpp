@@ -1,5 +1,7 @@
 #pragma once
 
+#include <imgui.h>
+
 namespace izan::ui {
 
 // The design language: every geometric and material decision the UI
@@ -63,5 +65,12 @@ struct DesignLanguage {
 const DesignLanguage& design();
 void set_design(const DesignLanguage& language);
 DesignLanguage design_cupertino();
+
+// Palette derivation — how the language turns the color theme's
+// swatches into component colors. Components use these, never raw mixes.
+ImVec4 kit_blend(const ImVec4& a, const ImVec4& b, float t);
+bool kit_is_dark();  // does the active theme read as dark
+ImVec4 kit_accent(); // the theme's accent (checkmark color)
+ImVec4 kit_danger(); // destructive red, blended toward the theme
 
 }

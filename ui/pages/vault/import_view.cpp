@@ -6,32 +6,11 @@
 #include <sodium.h>
 
 #include "ui/wallet/presets.hpp"
-#include "ui/widgets/design.hpp"
 #include "ui/widgets/kit.hpp"
-#include "ui/widgets/secret_field.hpp"
 
 namespace izan::ui {
 
 namespace {
-
-    // Two dots, the lit one saying where you are — no words needed.
-    void step_dots(int step)
-    {
-        const float em = ImGui::GetFontSize();
-        const ImVec2 pos = ImGui::GetCursorScreenPos();
-        ImDrawList* draw = ImGui::GetWindowDrawList();
-        for (int i = 0; i < 2; ++i) {
-            const ImVec2 c(
-                pos.x + em * 0.25f + float(i) * em * 0.75f, pos.y + em * 0.5f);
-            if (i == step)
-                draw->AddCircleFilled(
-                    c, em * 0.16f, ImGui::GetColorU32(kit_accent()));
-            else
-                draw->AddCircle(c, em * 0.16f,
-                    ImGui::GetColorU32(ImGuiCol_TextDisabled, 0.6f));
-        }
-        ImGui::Dummy(ImVec2(em * 1.5f, em));
-    }
 
     const char* detect_text(const i18n::Catalog& tr, crypto::SecretKind kind)
     {
@@ -71,7 +50,7 @@ ImportView::Event ImportView::draw(const i18n::Catalog& tr, bool busy,
 
     kit_title(tr("vault.import"));
     ImGui::SameLine();
-    step_dots(m_step == Step::Paste ? 0 : 1);
+    kit_step_dots(m_step == Step::Paste ? 0 : 1, 2);
     kit_vspace(0.4f);
 
     if (m_step == Step::Paste) {
@@ -80,12 +59,10 @@ ImportView::Event ImportView::draw(const i18n::Catalog& tr, bool busy,
             ImGui::SetKeyboardFocusHere();
             m_focus_pending = false;
         }
-        if (ImGui::InputTextMultiline("##secret-in", m_secret_in.data(),
-                m_secret_in.size(),
-                ImVec2(-1.0f, ImGui::GetTextLineHeight() * 4)))
+        if (kit_paste_box("##secret-in", m_secret_in.data(), m_secret_in.size(),
+                4.0f, secret_focus))
             m_model.update(std::string_view(m_secret_in.data(),
                 strnlen(m_secret_in.data(), m_secret_in.size())));
-        secret_focus |= ImGui::IsItemActive();
         kit_group_end();
         kit_vspace(0.2f);
 
@@ -108,34 +85,10 @@ ImportView::Event ImportView::draw(const i18n::Catalog& tr, bool busy,
                 if (!first)
                     kit_hairline();
                 first = false;
-
-                const bool chosen = m_model.selected() == uint8_t(p);
-                const ImVec2 pos = ImGui::GetCursorScreenPos();
-                const float row_h = em * 1.4f;
-                if (ImGui::InvisibleButton("##pick",
-                        ImVec2(ImGui::GetContentRegionAvail().x, row_h)))
+                if (kit_choice_row("##pick", preset_name(p),
+                        m_model.preview(p).c_str(),
+                        m_model.selected() == uint8_t(p)))
                     m_model.select(p);
-                if (ImGui::IsItemHovered())
-                    ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-                ImDrawList* draw = ImGui::GetWindowDrawList();
-                const ImVec2 mark(pos.x + em * 0.4f, pos.y + row_h * 0.5f);
-                if (chosen)
-                    draw->AddCircleFilled(
-                        mark, em * 0.28f, ImGui::GetColorU32(kit_accent()));
-                else
-                    draw->AddCircle(mark, em * 0.28f,
-                        ImGui::GetColorU32(ImGuiCol_TextDisabled, 0.6f));
-                draw->AddText(
-                    ImVec2(pos.x + em * 1.1f, pos.y + (row_h - em) * 0.5f),
-                    ImGui::GetColorU32(ImGuiCol_Text), preset_name(p));
-                ImGui::PushFont(nullptr, kit_caption_size());
-                const float addr_y
-                    = pos.y + (row_h - kit_caption_size()) * 0.5f;
-                draw->AddText(ImGui::GetFont(), kit_caption_size(),
-                    ImVec2(pos.x + em * 11.0f, addr_y),
-                    ImGui::GetColorU32(ImGuiCol_TextDisabled),
-                    m_model.preview(p).c_str());
-                ImGui::PopFont();
                 ImGui::PopID();
             }
             kit_group_end();
