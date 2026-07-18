@@ -1,8 +1,10 @@
 #pragma once
 
 #include <atomic>
+#include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -31,15 +33,23 @@ private:
         std::string when_hint; // the full moment in the user's clock
         std::string amount;    // "+0.05 ETH", signed
         std::string link;      // explorer URL, may be empty
+        uint64_t time = 0;     // unix seconds, the merge key
         bool incoming = false;
         bool failed = false;
     };
 
+    // One refresh, one flight per chain — the wall clock is the
+    // slowest chain, not the sum of six. Rows land as each chain
+    // answers; the page redraws the merge on every landing.
     struct Job {
-        std::atomic<int> phase { 0 }; // 0 running, 1 ok, 2 failed
         std::string address;
-        std::string error;
+        int spawned = 0;
+        std::atomic<int> pending { 0 };    // chains still flying
+        std::atomic<bool> dirty { false }; // fresh rows since last take
+        std::mutex mu;                     // guards rows/error/failed
         std::vector<Row> rows;
+        std::string error; // first failure — shown only if nothing landed
+        int failed = 0;
     };
 
     void refresh(const std::string& address);

@@ -69,97 +69,118 @@ void HistoryPage::refresh(const std::string& address)
     if (address.empty() || m_job)
         return;
     m_status.clear();
+    std::vector<chains::ChainSpec> flying;
+    for (const chains::ChainSpec& chain : m_registry.all())
+        if (!chain.history.empty())
+            flying.push_back(chain);
+    if (flying.empty())
+        return;
     auto job = std::make_shared<Job>();
     job->address = address;
+    job->spawned = int(flying.size());
+    job->pending.store(job->spawned);
     m_job = job;
-    std::thread([job, address, chains = m_registry.all()]() {
-        try {
-            struct Tagged {
-                assets::TxRecord rec;
-                const chains::ChainSpec* chain;
-            };
-            std::vector<Tagged> merged;
-            std::set<std::string> token_hashes;
-            // Chains answer independently; one silent instance must
-            // not blank the others' ledgers. Token transfers land
-            // first so their hashes can silence the empty native
-            // shells of the same transactions.
-            for (const chains::ChainSpec& chain : chains) {
-                if (chain.history.empty())
-                    continue;
-                try {
-                    assets::Ledger ledger
-                        = assets::fetch_ledger(chain, address);
-                    for (assets::TxRecord& rec : ledger.tokens) {
-                        token_hashes.insert(rec.hash);
-                        merged.push_back({ std::move(rec), &chain });
-                    }
-                    for (assets::TxRecord& rec : ledger.native) {
-                        // A token send's outer transaction is a
-                        // zero-value call on the contract; the
-                        // transfer row already tells the story.
-                        if (rec.value.to_dec() == "0"
-                            && token_hashes.contains(rec.hash))
-                            continue;
-                        merged.push_back({ std::move(rec), &chain });
-                    }
-                } catch (...) {
-                    // One silent chain must not blank the others.
+    for (const chains::ChainSpec& chain : flying) {
+        std::thread([job, address, chain]() {
+            try {
+                assets::Ledger ledger = assets::fetch_ledger(chain, address);
+                std::vector<Row> local;
+                std::set<std::string> token_hashes;
+                // Token transfers land first so their hashes can
+                // silence the empty native shells of the same
+                // transactions; hashes never cross chains, so the
+                // set stays chain-local.
+                auto add = [&](const assets::TxRecord& rec) {
+                    Row row;
+                    row.hash = rec.hash;
+                    row.counterparty = rec.counterparty;
+                    row.incoming = rec.incoming;
+                    row.failed = rec.failed;
+                    row.time = rec.time;
+                    row.note = chain.name + " · " + moment_of(rec.time);
+                    row.when_hint = local_moment_of(rec.time);
+                    const bool token = !rec.token_symbol.empty();
+                    row.amount = (rec.incoming ? "+" : "−")
+                        + units::format_units_display(rec.value,
+                            token ? rec.token_decimals : chain.decimals)
+                        + " " + (token ? rec.token_symbol : chain.symbol);
+                    if (!chain.explorer.empty())
+                        row.link = chain.explorer + "/tx/" + row.hash;
+                    local.push_back(std::move(row));
+                };
+                for (const assets::TxRecord& rec : ledger.tokens) {
+                    token_hashes.insert(rec.hash);
+                    add(rec);
                 }
+                for (const assets::TxRecord& rec : ledger.native) {
+                    // A token send's outer transaction is a zero-value
+                    // call on the contract; the transfer row already
+                    // tells the story.
+                    if (rec.value.to_dec() == "0"
+                        && token_hashes.contains(rec.hash))
+                        continue;
+                    add(rec);
+                }
+                {
+                    std::lock_guard lock(job->mu);
+                    job->rows.insert(job->rows.end(),
+                        std::make_move_iterator(local.begin()),
+                        std::make_move_iterator(local.end()));
+                }
+                job->dirty.store(true);
+            } catch (const std::exception& e) {
+                std::lock_guard lock(job->mu);
+                if (job->error.empty())
+                    job->error = e.what();
+                ++job->failed;
+            } catch (...) {
+                // Anything escaping a detached thread is process
+                // death; nothing that flies here is worth the wallet.
+                std::lock_guard lock(job->mu);
+                if (job->error.empty())
+                    job->error = "history worker failed";
+                ++job->failed;
             }
-            std::sort(merged.begin(), merged.end(),
-                [](const Tagged& a, const Tagged& b) {
-                    return a.rec.time > b.rec.time;
-                });
-            if (merged.size() > 50)
-                merged.resize(50);
-            for (const Tagged& t : merged) {
-                Row row;
-                row.hash = t.rec.hash;
-                row.counterparty = t.rec.counterparty;
-                row.incoming = t.rec.incoming;
-                row.failed = t.rec.failed;
-                row.note = t.chain->name + " · " + moment_of(t.rec.time);
-                row.when_hint = local_moment_of(t.rec.time);
-                const bool token = !t.rec.token_symbol.empty();
-                row.amount = (t.rec.incoming ? "+" : "−")
-                    + units::format_units_display(t.rec.value,
-                        token ? t.rec.token_decimals : t.chain->decimals)
-                    + " " + (token ? t.rec.token_symbol : t.chain->symbol);
-                if (!t.chain->explorer.empty())
-                    row.link = t.chain->explorer + "/tx/" + row.hash;
-                job->rows.push_back(std::move(row));
-            }
-            job->phase.store(1);
-        } catch (const std::exception& e) {
-            job->error = e.what();
-            job->phase.store(2);
-        } catch (...) {
-            // Anything escaping a detached thread is process death;
-            // nothing that flies here is worth the whole wallet.
-            job->error = "history worker failed";
-            job->phase.store(2);
-        }
-    }).detach();
+            job->pending.fetch_sub(1);
+        }).detach();
+    }
 }
 
 void HistoryPage::draw(const i18n::Catalog& tr)
 {
-    if (m_job && m_job->phase.load() != 0) {
-        const int phase = m_job->phase.load();
+    if (m_job) {
         const bool current = m_job->address == m_followed;
-        if (phase == 1 && current) {
-            m_rows = std::move(m_job->rows);
-            m_fetched_at = ImGui::GetTime();
-            m_status.clear();
-        } else if (phase == 2 && current) {
-            m_status = m_job->error;
+        const bool done = m_job->pending.load() == 0;
+        // Landed chains show at once; the merge is re-taken on every
+        // landing and once more at the end, so the last chain's rows
+        // can never slip between a dirty flag and the finish line.
+        if (current && (m_job->dirty.exchange(false) || done)) {
+            std::vector<Row> snap;
+            {
+                std::lock_guard lock(m_job->mu);
+                snap = m_job->rows;
+            }
+            std::sort(snap.begin(), snap.end(),
+                [](const Row& a, const Row& b) { return a.time > b.time; });
+            if (snap.size() > 50)
+                snap.resize(50);
+            m_rows = std::move(snap);
         }
-        m_job.reset();
-        // The account switched while this page of ledger flew; chase
-        // the address now on screen.
-        if (!current && !m_followed.empty())
-            refresh(m_followed);
+        if (done) {
+            if (current) {
+                m_fetched_at = ImGui::GetTime();
+                std::lock_guard lock(m_job->mu);
+                // Partial silence stays silent, as before; only a
+                // ledger with nothing to say explains why.
+                if (m_rows.empty() && m_job->failed == m_job->spawned)
+                    m_status = m_job->error;
+            }
+            m_job.reset();
+            // The account switched while this ledger flew; chase the
+            // address now on screen.
+            if (!current && !m_followed.empty())
+                refresh(m_followed);
+        }
     }
 
     ImGui::Begin(

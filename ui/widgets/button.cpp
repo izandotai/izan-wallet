@@ -137,8 +137,10 @@ bool kit_add_button(const char* id, float side)
     const ImVec4 fill = held ? kit_blend(accent, ImVec4(0, 0, 0, 1), 0.12f)
         : hovered            ? kit_blend(accent, ImVec4(1, 1, 1, 1), 0.12f)
                              : accent;
-    const float rounding
-        = design().button_pill ? side * 0.5f : ImGui::GetStyle().FrameRounding;
+    // Always a rounded square, even in pill mode — a full circle at
+    // this size reads as a bead, not a button, and the square sits
+    // flush with the field beside it.
+    const float rounding = ImGui::GetStyle().FrameRounding;
     ImDrawList* draw = ImGui::GetWindowDrawList();
     draw->AddRectFilled(pos, ImVec2(pos.x + side, pos.y + side),
         ImGui::GetColorU32(fill), rounding);

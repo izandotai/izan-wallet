@@ -60,6 +60,14 @@ WalletListView::Event WalletListView::draw(const i18n::Catalog& tr, bool busy,
             ev.type = Event::Type::Import;
         kit_menu_end();
     }
+    // The labelled pair rides under the search line for now — the
+    // add menu and the big buttons are both auditioning; one of them
+    // leaves after the review.
+    const float bw = ImGui::GetContentRegionAvail().x;
+    if (kit_primary_button(tr("vault.create"), bw))
+        ev.type = Event::Type::Create;
+    if (kit_subtle_button(tr("vault.import"), bw))
+        ev.type = Event::Type::Import;
     kit_vspace(0.35f);
 
     // The cards scroll under the header in their own region; this
