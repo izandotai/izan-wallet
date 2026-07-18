@@ -429,11 +429,9 @@ void draw_custom_title_bar(GLFWwindow* window, ChromeState& app,
     const float button_width = 46.0f;
     const float button_height = frame_height;
     const float slider_width = 112.0f;
-    const float opacity_label_width = ImGui::CalcTextSize("opacity").x;
     const float window_buttons_width
         = button_width * 3.0f + style.ItemSpacing.x * 2.0f;
-    const float opacity_width = slider_width + style.ItemSpacing.x
-        + opacity_label_width + style.ItemSpacing.x;
+    const float opacity_width = slider_width + style.ItemSpacing.x;
     const bool show_opacity = title_size.x >= 900.0f;
     const float controls_width
         = window_buttons_width + (show_opacity ? opacity_width : 0.0f);
@@ -461,13 +459,36 @@ void draw_custom_title_bar(GLFWwindow* window, ChromeState& app,
         ImGuiCol_WindowBg, theme_transparent_chrome_window_color(app));
     ImGui::Begin("izan-titlebar", nullptr, flags);
 
-    ImGui::SetCursorScreenPos(ImVec2(title_min.x + 16.0f, text_y));
+    // The izan mark: an accent squircle wearing a dotted i, minted in
+    // vectors like every other icon in the app — it follows the theme
+    // instead of shipping a bitmap.
+    {
+        ImDrawList* draw_list = ImGui::GetWindowDrawList();
+        const float mark = 20.0f;
+        const ImVec2 mp(title_min.x + 16.0f,
+            title_min.y + std::floor((kTitleBarHeight - mark) * 0.5f));
+        ImVec4 accent = ImGui::GetStyleColorVec4(ImGuiCol_CheckMark);
+        accent.w = 1.0f;
+        draw_list->AddRectFilled(mp, ImVec2(mp.x + mark, mp.y + mark),
+            ImGui::GetColorU32(accent), 6.0f);
+        draw_list->AddRectFilled(ImVec2(mp.x + 1.0f, mp.y + 1.0f),
+            ImVec2(mp.x + mark - 1.0f, mp.y + mark * 0.45f),
+            IM_COL32(255, 255, 255, 28), 5.0f, ImDrawFlags_RoundCornersTop);
+        const float cx = mp.x + mark * 0.5f;
+        draw_list->AddCircleFilled(
+            ImVec2(cx, mp.y + 5.2f), 1.9f, IM_COL32(255, 255, 255, 240));
+        draw_list->AddRectFilled(ImVec2(cx - 1.6f, mp.y + 8.6f),
+            ImVec2(cx + 1.6f, mp.y + 15.6f), IM_COL32(255, 255, 255, 240),
+            1.6f);
+    }
+    const float title_x = title_min.x + 16.0f + 20.0f + 10.0f;
+    ImGui::SetCursorScreenPos(ImVec2(title_x, text_y));
     ImGui::TextUnformatted(title_text);
     if (show_subtitle && subtitle_text != nullptr) {
         // Subtitle follows the title's measured width; a fixed offset
         // overlaps once the title runs long.
         const float subtitle_x
-            = title_min.x + 16.0f + ImGui::CalcTextSize(title_text).x + 24.0f;
+            = title_x + ImGui::CalcTextSize(title_text).x + 24.0f;
         ImGui::SetCursorScreenPos(ImVec2(subtitle_x, text_y));
         ImGui::TextDisabled("%s", subtitle_text);
     }
@@ -482,8 +503,6 @@ void draw_custom_title_bar(GLFWwindow* window, ChromeState& app,
             app.window_opacity = static_cast<float>(opacity_percent) / 100.0f;
             glfwSetWindowOpacity(window, app.window_opacity);
         }
-        ImGui::SameLine();
-        ImGui::TextDisabled("opacity");
         ImGui::SameLine();
     }
     if (draw_window_control_button("##window-minimize",

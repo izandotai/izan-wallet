@@ -1,5 +1,7 @@
 #include "ui/widgets/dialog.hpp"
 
+#include <string>
+
 #include "ui/widgets/design.hpp"
 #include "ui/widgets/kit.hpp"
 
@@ -91,18 +93,31 @@ namespace {
 
 }
 
+// An auto-resizing window has no measured size on its opening frame,
+// so pivot-centering would land it off-axis for one frame and it
+// would visibly jump into place. The opening frame is instead spent
+// far off-screen taking measurements; the dialog first becomes
+// visible already centered.
+std::string g_dialog_appearing;
+
 void kit_dialog_open(const char* id)
 {
     ImGui::OpenPopup(id);
+    g_dialog_appearing = id;
 }
 
 bool kit_dialog_begin(const char* id, bool* dismissed, bool escapable)
 {
     push_dialog_style();
-    // Anchored to the viewport's center every frame — resizing the
-    // host window must not leave the dialog drifting off-axis.
-    ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(),
-        ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+    if (g_dialog_appearing == id) {
+        ImGui::SetNextWindowPos(ImVec2(-20000.0f, -20000.0f), ImGuiCond_Always);
+        g_dialog_appearing.clear();
+    } else {
+        // Anchored to the viewport's center every frame — resizing the
+        // host window must not leave the dialog drifting off-axis.
+        ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(),
+            ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+    }
     const bool open = ImGui::BeginPopupModal(id, nullptr,
         ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar
             | ImGuiWindowFlags_NoMove);
