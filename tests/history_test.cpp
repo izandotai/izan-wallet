@@ -93,6 +93,35 @@ TEST_CASE("tokentx rows carry the token's own identity")
     CHECK_FALSE(rows[0].failed);
 }
 
+TEST_CASE("tokentx phishing ads are turned away at the door")
+{
+    const auto rows = izan::assets::parse_tokentx(
+        R"({"status":"1","result":[
+        {"hash":"0x444","from":"0x0000000000000000000000000000000000000000",
+         "to":"0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+         "value":"14000000000000000000000","timeStamp":"1789000600",
+         "tokenSymbol":"Claim $ENS rewards at https://enstoken.io",
+         "tokenDecimal":"18"},
+        {"hash":"0x555","from":"0x0000000000000000000000000000000000000000",
+         "to":"0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+         "value":"1","timeStamp":"1789000700",
+         "tokenSymbol":"enstoken.io-http","tokenDecimal":"18"},
+        {"hash":"0x666","from":"0x0000000000000000000000000000000000000000",
+         "to":"0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+         "value":"1","timeStamp":"1789000800",
+         "tokenSymbol":"AAAAAAAAAAAAAAAAAAAAAAAA","tokenDecimal":"18"},
+        {"hash":"0x777","from":"0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+         "to":"0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+         "value":"100000","timeStamp":"1789000900",
+         "tokenSymbol":"USDC.e","tokenDecimal":"6"}
+    ]})",
+        kSelf);
+    // The sentence, the embedded URL, and the 24-char banner all die;
+    // a dotted-but-honest ticker still walks in.
+    REQUIRE(rows.size() == 1);
+    CHECK(rows[0].token_symbol == "USDC.e");
+}
+
 // Reproduces the history page's whole worker path — six chains, both
 // endpoints, dedupe, display formatting — outside the GUI.
 //   IZAN_LIVE_TESTS=1 build/izan_tests.exe -tc="*ledger live*"

@@ -33,6 +33,22 @@ namespace {
 
 namespace {
 
+    // Phishing airdrops advertise inside the token identity itself —
+    // a "symbol" carrying a sentence and a claim-site URL, pushed at
+    // every active address. A real ticker is short and has neither
+    // whitespace nor a web address; anything else is an ad, not an
+    // asset, and has no place in the ledger.
+    bool spammy_symbol(const std::string& symbol)
+    {
+        if (symbol.size() > 20)
+            return true;
+        for (const unsigned char c : symbol)
+            if (c <= ' ')
+                return true;
+        const std::string low = lower_of(symbol);
+        return low.contains("http") || low.contains("www.");
+    }
+
     // The shared walk over an etherscan-style answer; tokens = true
     // additionally demands a readable token identity per row.
     std::vector<TxRecord> parse_rows(
@@ -78,6 +94,8 @@ namespace {
                 const std::string dec = field(row, "tokenDecimal");
                 if (rec.token_symbol.empty() || dec.empty())
                     continue; // a transfer of an unnameable thing
+                if (spammy_symbol(rec.token_symbol))
+                    continue;
                 rec.token_decimals
                     = unsigned(std::strtoul(dec.c_str(), nullptr, 10));
                 if (rec.token_decimals > units::kMaxDecimals)

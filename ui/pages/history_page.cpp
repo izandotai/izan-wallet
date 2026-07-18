@@ -200,6 +200,10 @@ void HistoryPage::draw(const i18n::Catalog& tr)
             const Row& row = m_rows[i];
             if (i)
                 kit_hairline();
+            // The hash is not a row identity: a composite transaction
+            // keeps both its token row and its native row, and a swap
+            // can emit several token rows — all sharing one hash.
+            ImGui::PushID(int(i));
             if (kit_tx_row(row.hash.c_str(), row.incoming,
                     row.counterparty.c_str(), row.note.c_str(),
                     row.amount.c_str(), row.failed)
@@ -207,6 +211,7 @@ void HistoryPage::draw(const i18n::Catalog& tr)
                 kit_open_url(row.link.c_str());
             if (ImGui::IsItemHovered())
                 kit_tooltip(row.hash.c_str());
+            ImGui::PopID();
         }
         kit_group_end();
     } else if (!busy && m_status.empty()) {
