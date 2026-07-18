@@ -34,6 +34,7 @@
 #include "ui/shell/ime.hpp"
 #include "ui/shell/theme.hpp"
 #include "ui/shell/ui_layout.hpp"
+#include "ui/widgets/kit.hpp"
 
 namespace {
 
@@ -322,7 +323,24 @@ int main(int argc, char** argv)
         // back over a style applied mid-callback.
         int pending_theme = -1;
         int pending_layout = -1;
+        bool open_about = false;
         ui::draw_custom_menu_bar(chrome, [&] {
+            // The three-pillar bar of a desktop application: File for
+            // the wallet verbs, View for the shell, Help for identity.
+            if (ImGui::BeginMenu(tr("menu.file"))) {
+                if (ImGui::MenuItem(tr("vault.create")))
+                    vault.request_create();
+                if (ImGui::MenuItem(tr("vault.import")))
+                    vault.request_import();
+                ImGui::Separator();
+                if (ImGui::MenuItem(
+                        tr("vault.lock"), nullptr, false, vault.unlocked()))
+                    vault.request_lock();
+                ImGui::Separator();
+                if (ImGui::MenuItem(tr("menu.exit")))
+                    glfwSetWindowShouldClose(app.window(), 1);
+                ImGui::EndMenu();
+            }
             if (ImGui::BeginMenu(tr("menu.view"))) {
                 if (ImGui::BeginMenu(tr("menu.layout"))) {
                     if (ImGui::MenuItem(tr("layout.workbench")))
@@ -355,7 +373,29 @@ int main(int argc, char** argv)
                 }
                 ImGui::EndMenu();
             }
+            if (ImGui::BeginMenu(tr("menu.help"))) {
+                if (ImGui::MenuItem(tr("menu.about")))
+                    open_about = true;
+                ImGui::EndMenu();
+            }
         });
+        if (open_about)
+            ui::kit_dialog_open("##about");
+        if (ui::kit_dialog_begin("##about")) {
+            ui::kit_dialog_header_icon(
+                "⛩️", tr("app.title"), tr("about.tagline"));
+            const float aw
+                = ImGui::CalcTextSize("github.com/izandotai/wallet").x;
+            ImGui::SetCursorPosX((ImGui::GetWindowWidth() - aw) * 0.5f);
+            ui::kit_hyperlink("##about-src", "github.com/izandotai/wallet",
+                "https://github.com/izandotai/wallet");
+            ui::kit_vspace(0.3f);
+            const float bw = ui::kit_button_width(tr("ui.back"));
+            ImGui::SetCursorPosX((ImGui::GetWindowWidth() - bw) * 0.5f);
+            if (ui::kit_subtle_button(tr("ui.back")))
+                ui::kit_dialog_close();
+            ui::kit_dialog_end();
+        }
         if (pending_theme >= 0) {
             chrome.theme_index = pending_theme;
             ui::apply_theme_style_only(pending_theme);

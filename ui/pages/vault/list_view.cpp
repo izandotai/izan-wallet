@@ -42,37 +42,27 @@ WalletListView::Event WalletListView::draw(const i18n::Catalog& tr, bool busy,
     Event ev;
     ImGui::BeginDisabled(busy);
 
-    // The pinned header: filter, then the door. The add button opens
-    // a two-item menu instead of stacking two buttons — the sidebar
-    // stays narrow and the header stays one line in every language.
-    const float add_w = ImGui::GetFrameHeight();
-    const float spacing = ImGui::GetStyle().ItemSpacing.x;
-    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - add_w - spacing);
-    kit_text_field(
-        "##filter", tr("wallet.filter"), m_filter.data(), m_filter.size());
-    ImGui::SameLine();
-    if (kit_add_button("##add", add_w))
-        ImGui::OpenPopup("##add-menu");
-    if (kit_menu_begin("##add-menu")) {
-        if (kit_menu_item(tr("vault.create")))
-            ev.type = Event::Type::Create;
-        if (kit_menu_item(tr("vault.import")))
-            ev.type = Event::Type::Import;
-        kit_menu_end();
-    }
-    // The labelled pair rides under the search line for now — the
-    // add menu and the big buttons are both auditioning; one of them
-    // leaves after the review.
+    // The pinned header: the two doors full width, the filter under
+    // them — a list of a thousand wallets buries neither.
+    const float em = ImGui::GetFontSize();
     const float bw = ImGui::GetContentRegionAvail().x;
     if (kit_primary_button(tr("vault.create"), bw))
         ev.type = Event::Type::Create;
     if (kit_subtle_button(tr("vault.import"), bw))
         ev.type = Event::Type::Import;
+    kit_vspace(0.15f);
+    ImGui::SetNextItemWidth(bw);
+    kit_search_field(
+        "##filter", tr("wallet.filter"), m_filter.data(), m_filter.size());
     kit_vspace(0.35f);
 
     // The cards scroll under the header in their own region; this
-    // child really scrolls, so it earns the wheel it captures.
-    ImGui::BeginChild("##wallet-scroll", ImVec2(0.0f, 0.0f));
+    // child really scrolls, so it earns the wheel it captures. Padded
+    // evenly on all four sides — rows must not kiss the region's rim.
+    ImGui::PushStyleVar(
+        ImGuiStyleVar_WindowPadding, ImVec2(em * 0.45f, em * 0.45f));
+    ImGui::BeginChild("##wallet-scroll", ImVec2(0.0f, 0.0f),
+        ImGuiChildFlags_AlwaysUseWindowPadding);
     const char* filter = m_filter.data();
     for (const WalletEntry& w : store.wallets()) {
         if (!name_matches(w.name, filter))
@@ -117,6 +107,7 @@ WalletListView::Event WalletListView::draw(const i18n::Catalog& tr, bool busy,
         ImGui::PopID();
     }
     ImGui::EndChild();
+    ImGui::PopStyleVar();
 
     // Dialogs are opened outside the card loop so their ids are stable.
     if (m_open_rename) {

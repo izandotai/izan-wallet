@@ -1,6 +1,11 @@
 {
     "lang.name": "Français",
     "app.title": "Izan Wallet",
+    "menu.file": "Fichier",
+    "menu.help": "Aide",
+    "menu.about": "À propos d'Izan Wallet",
+    "menu.exit": "Quitter",
+    "about.tagline": "Un portefeuille multichaîne local d'abord.",
     "menu.view": "Affichage",
     "menu.language": "Langue",
     "menu.theme": "Thème",

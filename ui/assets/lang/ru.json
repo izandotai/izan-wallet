@@ -1,6 +1,11 @@
 {
     "lang.name": "Русский",
     "app.title": "Izan Wallet",
+    "menu.file": "Файл",
+    "menu.help": "Справка",
+    "menu.about": "О приложении Izan Wallet",
+    "menu.exit": "Выход",
+    "about.tagline": "Локальный мультичейн-кошелёк.",
     "menu.view": "Вид",
     "menu.language": "Язык",
     "menu.theme": "Тема",

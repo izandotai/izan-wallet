@@ -96,6 +96,35 @@ public:
         return m_session.client();
     }
 
+    // Menu-bar verbs: the File menu speaks the same events the wallet
+    // list and account views do. No-ops while a job is in flight —
+    // the single-driver gate holds for every entrance.
+    void request_create()
+    {
+        if (m_job)
+            return;
+        m_create.reset();
+        m_open_create = true;
+    }
+
+    void request_import()
+    {
+        if (m_job)
+            return;
+        m_import.reset();
+        enter(Mode::ImportForm);
+    }
+
+    void request_lock()
+    {
+        if (m_job)
+            return;
+        if (m_session.client() && m_session.client()->lock()) {
+            m_session.mark_unlocked(false);
+            enter(Mode::Locked);
+        }
+    }
+
 private:
     // Create lives in a dialog and the root-secret reveal in another;
     // the mode machine only tracks what fills the detail window.

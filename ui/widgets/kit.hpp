@@ -25,6 +25,7 @@
 #include "ui/widgets/pill.hpp"
 #include "ui/widgets/qr.hpp"
 #include "ui/widgets/result_mark.hpp"
+#include "ui/widgets/search_field.hpp"
 #include "ui/widgets/select.hpp"
 #include "ui/widgets/spinner.hpp"
 #include "ui/widgets/step_dots.hpp"

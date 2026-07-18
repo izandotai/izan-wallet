@@ -1,6 +1,11 @@
 {
     "lang.name": "日本語",
     "app.title": "Izan ウォレット",
+    "menu.file": "ファイル",
+    "menu.help": "ヘルプ",
+    "menu.about": "Izan Wallet について",
+    "menu.exit": "終了",
+    "about.tagline": "ローカルファーストのマルチチェーンウォレット。",
     "menu.view": "表示",
     "menu.language": "言語",
     "menu.theme": "テーマ",

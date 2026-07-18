@@ -334,6 +334,7 @@ if(IZAN_BUILD_UI AND WIN32)
         ui/widgets/pill.cpp
         ui/widgets/qr.cpp
         ui/widgets/result_mark.cpp
+        ui/widgets/search_field.cpp
         ui/widgets/select.cpp
         ui/widgets/spinner.cpp
         ui/widgets/step_dots.cpp

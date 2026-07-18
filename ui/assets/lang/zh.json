@@ -1,6 +1,11 @@
 {
     "lang.name": "中文",
     "app.title": "Izan 钱包",
+    "menu.file": "文件",
+    "menu.help": "帮助",
+    "menu.about": "关于伊赞钱包",
+    "menu.exit": "退出",
+    "about.tagline": "本地优先的多链钱包。",
     "menu.view": "视图",
     "menu.language": "语言",
     "menu.theme": "主题",

@@ -1,6 +1,11 @@
 {
     "lang.name": "English",
     "app.title": "Izan Wallet",
+    "menu.file": "File",
+    "menu.help": "Help",
+    "menu.about": "About Izan Wallet",
+    "menu.exit": "Exit",
+    "about.tagline": "A local-first multichain wallet.",
     "menu.view": "View",
     "menu.language": "Language",
     "menu.theme": "Theme",

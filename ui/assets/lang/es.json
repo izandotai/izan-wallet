@@ -1,6 +1,11 @@
 {
     "lang.name": "Español",
     "app.title": "Izan Wallet",
+    "menu.file": "Archivo",
+    "menu.help": "Ayuda",
+    "menu.about": "Acerca de Izan Wallet",
+    "menu.exit": "Salir",
+    "about.tagline": "Una cartera multicadena con enfoque local.",
     "menu.view": "Ver",
     "menu.language": "Idioma",
     "menu.theme": "Tema",
