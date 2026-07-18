@@ -20,8 +20,8 @@ namespace izan::keyd {
 
 namespace {
 
-    crypto::HdKey account_key(
-        const secure::SecureBytes& entropy, uint32_t account)
+    crypto::HdKey account_key(const secure::SecureBytes& entropy,
+        uint32_t account, DerivePreset preset)
     {
         const secure::SecureBytes mnemonic
             = crypto::entropy_to_mnemonic(entropy);
@@ -32,7 +32,7 @@ namespace {
         if (!root)
             throw std::runtime_error("signer: seed rejected");
         std::optional<crypto::HdKey> key
-            = root->derive(kEthAccountPathPrefix + std::to_string(account));
+            = root->derive(derive_path(preset, account));
         if (!key)
             throw std::runtime_error("signer: account underivable");
         return *key;
@@ -62,15 +62,40 @@ namespace {
 
 }
 
+std::string derive_path(DerivePreset preset, uint32_t account)
+{
+    const std::string i = std::to_string(account);
+    switch (preset) {
+    case DerivePreset::MetaMask:
+        return "m/44'/60'/0'/0/" + i;
+    case DerivePreset::LedgerLive:
+        return "m/44'/60'/" + i + "'/0/0";
+    case DerivePreset::LegacyMew:
+        return "m/44'/60'/0'/" + i;
+    }
+    throw std::invalid_argument("signer: unknown derive preset");
+}
+
 ProposalBody parse_proposal(std::span<const uint8_t> payload)
 {
+    const auto u32le = [](std::span<const uint8_t> p) {
+        return uint32_t(p[0]) | uint32_t(p[1]) << 8 | uint32_t(p[2]) << 16
+            | uint32_t(p[3]) << 24;
+    };
     ProposalBody body;
     if (!payload.empty() && payload.front() == kEnvelopeV1) {
         if (payload.size() < 5)
             throw std::invalid_argument("signer: truncated envelope");
-        body.account = uint32_t(payload[1]) | uint32_t(payload[2]) << 8
-            | uint32_t(payload[3]) << 16 | uint32_t(payload[4]) << 24;
+        body.account = u32le(payload.subspan(1));
         body.tx = payload.subspan(5);
+    } else if (!payload.empty() && payload.front() == kEnvelopeV2) {
+        if (payload.size() < 6)
+            throw std::invalid_argument("signer: truncated envelope");
+        if (payload[1] >= kDerivePresetCount)
+            throw std::invalid_argument("signer: unknown derive preset");
+        body.preset = DerivePreset(payload[1]);
+        body.account = u32le(payload.subspan(2));
+        body.tx = payload.subspan(6);
     } else {
         body.tx = payload;
     }
@@ -79,8 +104,8 @@ ProposalBody parse_proposal(std::span<const uint8_t> payload)
     return body;
 }
 
-SignedDigest sign_payload(
-    const vault::Wallet& wallet, std::span<const uint8_t> tx, uint32_t account)
+SignedDigest sign_payload(const vault::Wallet& wallet,
+    std::span<const uint8_t> tx, uint32_t account, DerivePreset preset)
 {
     if (tx.empty())
         throw std::invalid_argument("signer: empty payload");
@@ -89,7 +114,7 @@ SignedDigest sign_payload(
     keccak_256(tx.data(), tx.size(), out.digest.data());
 
     if (!wallet.entropy.empty()) {
-        const crypto::HdKey key = account_key(wallet.entropy, account);
+        const crypto::HdKey key = account_key(wallet.entropy, account, preset);
         const std::optional<crypto::EcdsaSignature> sig
             = key.sign_digest(out.digest);
         if (!sig)
@@ -107,11 +132,12 @@ SignedDigest sign_payload(
     return out;
 }
 
-std::string account_address(const vault::Wallet& wallet, uint32_t account)
+std::string account_address(
+    const vault::Wallet& wallet, uint32_t account, DerivePreset preset)
 {
     if (!wallet.entropy.empty())
-        return crypto::eth_address(
-            account_key(wallet.entropy, account).public_key_uncompressed());
+        return crypto::eth_address(account_key(wallet.entropy, account, preset)
+                .public_key_uncompressed());
     if (!wallet.imported.empty()) {
         if (account != 0)
             throw std::invalid_argument(

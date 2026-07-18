@@ -409,6 +409,40 @@ TEST_CASE("signer: the wallet's contents choose the key")
         CHECK_THROWS(izan::keyd::parse_proposal(empty_tx));
     }
 
+    // Derivation presets: each maps an index to its vendor's path, and
+    // different presets are different identities from the same seed.
+    CHECK(izan::keyd::derive_path(DerivePreset::MetaMask, 7)
+        == "m/44'/60'/0'/0/7");
+    CHECK(izan::keyd::derive_path(DerivePreset::LedgerLive, 7)
+        == "m/44'/60'/7'/0/0");
+    CHECK(izan::keyd::derive_path(DerivePreset::LegacyMew, 7)
+        == "m/44'/60'/0'/7");
+    CHECK(account_address(seed, 0, DerivePreset::MetaMask) == kDevAccount0);
+    // At index 0 MetaMask and Ledger Live agree by construction (both
+    // are m/44'/60'/0'/0/0); the presets fork from index 1 on.
+    CHECK(account_address(seed, 0, DerivePreset::LedgerLive) == kDevAccount0);
+    const std::string ledger1
+        = account_address(seed, 1, DerivePreset::LedgerLive);
+    CHECK(ledger1 != account_address(seed, 1, DerivePreset::MetaMask));
+    CHECK(ledger1 != account_address(seed, 1, DerivePreset::LegacyMew));
+    const SignedDigest byLedger
+        = sign_payload(seed, payload, 1, DerivePreset::LedgerLive);
+    CHECK(byLedger.signer == ledger1);
+
+    // Envelope v2 carries the preset; a byte outside the registry is
+    // refused, never silently derived.
+    {
+        std::vector<uint8_t> v2 { izan::keyd::kEnvelopeV2, 0x01, 0x03, 0x00,
+            0x00, 0x00, 0xAA };
+        const auto body = izan::keyd::parse_proposal(v2);
+        CHECK(body.preset == DerivePreset::LedgerLive);
+        CHECK(body.account == 3);
+        REQUIRE(body.tx.size() == 1);
+        const std::vector<uint8_t> badPreset { izan::keyd::kEnvelopeV2, 0x09,
+            0x00, 0x00, 0x00, 0x00, 0xAA };
+        CHECK_THROWS(izan::keyd::parse_proposal(badPreset));
+    }
+
     // An empty wallet has nothing to say.
     CHECK_THROWS_AS(
         sign_payload(seed, std::vector<uint8_t> {}), std::invalid_argument);

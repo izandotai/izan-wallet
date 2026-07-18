@@ -32,7 +32,9 @@ enum class Op : uint8_t {
     // A receive/sender address of the wallet. Public data, but only
     // derivable from the seed, so it answers only while unlocked —
     // a locked keyd tells nobody what it guards.
-    Address = 0x0a, // body: empty (= account 0) or u32-LE account index
+    // body: empty (= account 0, default preset), u32-LE account, or
+    // u32-LE account then u8 derive preset
+    Address = 0x0a,
 
     // replies (keyd → UI)
     Hello = 0x40,       // body: version, hardening bitmask (sent once at start)

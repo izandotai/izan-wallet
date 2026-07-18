@@ -403,11 +403,19 @@ int child_main(int argc, char** argv)
             }
             case Op::Address: {
                 uint32_t account = 0;
-                if (frame->size() == 1 + 4) {
+                DerivePreset preset = DerivePreset::MetaMask;
+                if (frame->size() == 1 + 4 || frame->size() == 1 + 4 + 1) {
                     account = uint32_t(frame->data()[1])
                         | uint32_t(frame->data()[2]) << 8
                         | uint32_t(frame->data()[3]) << 16
                         | uint32_t(frame->data()[4]) << 24;
+                    if (frame->size() == 1 + 4 + 1) {
+                        if (frame->data()[5] >= kDerivePresetCount) {
+                            send_err(channel, "unknown derive preset");
+                            break;
+                        }
+                        preset = DerivePreset(frame->data()[5]);
+                    }
                 } else if (frame->size() != 1) {
                     send_err(channel, "short frame");
                     break;
@@ -419,7 +427,7 @@ int child_main(int argc, char** argv)
                 }
                 try {
                     const std::string addr
-                        = account_address(*holder->wallet, account);
+                        = account_address(*holder->wallet, account, preset);
                     std::vector<uint8_t> body(1 + addr.size());
                     body[0] = uint8_t(holder->wallet->entropy.empty()
                             ? RevealKind::PrivateKey
