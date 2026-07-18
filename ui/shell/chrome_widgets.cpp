@@ -75,23 +75,35 @@ namespace {
 
     void draw_popup_shadow_for_rect(ImDrawList* draw_list,
         const ChromeState& app, const ImRect& rect,
-        const std::vector<ImRect>& blockers)
+        const std::vector<ImRect>& blockers, bool modal)
     {
-        constexpr std::array<float, 12> kShadowAlpha
+        // Two depth profiles. Menus float just off the surface; modals
+        // hang in the air the way macOS alerts do — a wide, soft,
+        // slightly dropped umbra (roughly ~50px blur, ~30% black,
+        // settled a few pixels below the window).
+        constexpr std::array<float, 12> kMenuAlpha
             = { 0.020f, 0.017f, 0.014f, 0.011f, 0.0085f, 0.0065f, 0.0050f,
                   0.0038f, 0.0028f, 0.0020f, 0.0014f, 0.0010f };
+        constexpr std::array<float, 14> kModalAlpha
+            = { 0.052f, 0.045f, 0.038f, 0.032f, 0.026f, 0.021f, 0.017f, 0.013f,
+                  0.010f, 0.0075f, 0.0055f, 0.0040f, 0.0028f, 0.0018f };
+        const float* alpha = modal ? kModalAlpha.data() : kMenuAlpha.data();
+        const int layers
+            = modal ? int(kModalAlpha.size()) : int(kMenuAlpha.size());
+        const float spread_step = modal ? 3.4f : 1.75f;
+        const float spread_base = modal ? 3.0f : 2.0f;
+        const float drop = modal ? 6.0f : 0.0f;
+
         const float base_rounding = ImGui::GetStyle().PopupRounding;
-        for (int index = static_cast<int>(kShadowAlpha.size()) - 1; index >= 0;
-            --index) {
+        for (int index = layers - 1; index >= 0; --index) {
             const float layer = static_cast<float>(index + 1);
-            const float spread = 2.0f + layer * 1.75f;
-            const ImU32 color = theme_popup_shadow_color(
-                app, kShadowAlpha[static_cast<std::size_t>(index)]);
+            const float spread = spread_base + layer * spread_step;
+            const ImU32 color = theme_popup_shadow_color(app, alpha[index]);
             const float rounding = base_rounding + spread;
 
             draw_shadow_rect_clipped(draw_list,
-                ImRect(ImVec2(rect.Min.x - spread, rect.Min.y - spread),
-                    ImVec2(rect.Max.x + spread, rect.Max.y + spread)),
+                ImRect(ImVec2(rect.Min.x - spread, rect.Min.y - spread + drop),
+                    ImVec2(rect.Max.x + spread, rect.Max.y + spread + drop)),
                 blockers, color, rounding, 0);
         }
     }
@@ -132,21 +144,27 @@ void draw_menu_popup_shadows(const ChromeState& app)
     ImGuiContext* context = ImGui::GetCurrentContext();
     if (context == nullptr)
         return;
-    std::vector<std::pair<ImGuiWindow*, ImRect>> popup_rects;
+
+    struct FloatingRect {
+        ImGuiWindow* window = nullptr;
+        ImRect rect;
+        bool modal = false;
+    };
+
+    std::vector<FloatingRect> popup_rects;
     for (ImGuiWindow* window : context->Windows) {
         if (window == nullptr || !window->WasActive)
             continue;
         const bool popup = (window->Flags & ImGuiWindowFlags_Popup) != 0;
         const bool modal = (window->Flags & ImGuiWindowFlags_Modal) != 0;
         const bool tooltip = (window->Flags & ImGuiWindowFlags_Tooltip) != 0;
-        // Modals wear the same soft shadow as menus — one depth
-        // language for everything that floats.
         if ((!popup && !modal) || tooltip)
             continue;
-        popup_rects.emplace_back(window,
+        popup_rects.push_back({ window,
             ImRect(window->Pos,
                 ImVec2(window->Pos.x + window->Size.x,
-                    window->Pos.y + window->Size.y)));
+                    window->Pos.y + window->Size.y)),
+            modal });
     }
     if (popup_rects.empty())
         return;
@@ -168,7 +186,7 @@ void draw_menu_popup_shadows(const ChromeState& app)
     ImGuiWindow* shadow_window = ImGui::GetCurrentWindow();
     if (shadow_window != nullptr)
         ImGui::BringWindowToDisplayBehind(
-            shadow_window, popup_rects.front().first);
+            shadow_window, popup_rects.front().window);
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
     draw_list->PushClipRectFullScreen();
 
@@ -177,10 +195,10 @@ void draw_menu_popup_shadows(const ChromeState& app)
         for (std::size_t blocker_index = 0; blocker_index < popup_rects.size();
             ++blocker_index) {
             if (blocker_index != index)
-                blockers.push_back(popup_rects[blocker_index].second);
+                blockers.push_back(popup_rects[blocker_index].rect);
         }
-        draw_popup_shadow_for_rect(
-            draw_list, app, popup_rects[index].second, blockers);
+        draw_popup_shadow_for_rect(draw_list, app, popup_rects[index].rect,
+            blockers, popup_rects[index].modal);
     }
     draw_list->PopClipRect();
     ImGui::End();

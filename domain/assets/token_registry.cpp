@@ -52,4 +52,27 @@ std::vector<const TokenSpec*> TokenRegistry::tokens_for(uint64_t chain_id) const
     return out;
 }
 
+void TokenRegistry::extend(
+    const TokenRegistry& extra, const chains::ChainRegistry& chains)
+{
+    auto lower_of = [](const std::string& s) {
+        std::string out = s;
+        std::ranges::transform(out, out.begin(),
+            [](unsigned char c) { return char(std::tolower(c)); });
+        return out;
+    };
+    for (const TokenSpec& t : extra.all()) {
+        if (chains.by_id(t.chain_id) == nullptr)
+            continue;
+        const std::string addr = lower_of(t.address);
+        const bool known
+            = std::ranges::any_of(m_tokens, [&](const TokenSpec& have) {
+                  return have.chain_id == t.chain_id
+                      && lower_of(have.address) == addr;
+              });
+        if (!known)
+            m_tokens.push_back(t);
+    }
+}
+
 }

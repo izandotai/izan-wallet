@@ -8,6 +8,7 @@
 #include "core/codec/abi.hpp"
 #include "core/units/decimal.hpp"
 #include "domain/assets/balances.hpp"
+#include "domain/assets/token_registry.hpp"
 #include "domain/chains/rpc_client.hpp"
 
 using izan::chains::ChainRegistry;
@@ -112,4 +113,29 @@ TEST_CASE("live: robinhood chain answers on its shipped endpoint")
     RpcClient rpc(*rh);
     U256 block = U256::from_hex(rpc.call_string("eth_blockNumber", "[]"));
     CHECK(!block.is_zero());
+}
+
+TEST_CASE("user token file folds in, minus nonsense")
+{
+    const auto chains = izan::chains::ChainRegistry::from_json(R"([
+        {"chain_id":1,"name":"Ethereum","symbol":"ETH","decimals":18,
+         "rpc":["https://example.invalid"]}
+    ])");
+    auto tokens = izan::assets::TokenRegistry::from_json(R"([
+        {"chain_id":1,"symbol":"USDC","decimals":6,
+         "address":"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"}
+    ])");
+    const auto user = izan::assets::TokenRegistry::from_json(R"([
+        {"chain_id":1,"symbol":"MEME","decimals":18,
+         "address":"0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"},
+        {"chain_id":1,"symbol":"USDC2","decimals":6,
+         "address":"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"},
+        {"chain_id":999,"symbol":"GHOST","decimals":18,
+         "address":"0x70997970C51812dc3A010C7d01b50e0d17dc79C8"}
+    ])");
+    tokens.extend(user, chains);
+    // The new token joins; the duplicate address and the token on an
+    // unknown chain are both turned away.
+    REQUIRE(tokens.all().size() == 2);
+    CHECK(tokens.all()[1].symbol == "MEME");
 }

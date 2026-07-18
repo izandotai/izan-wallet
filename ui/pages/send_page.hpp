@@ -32,7 +32,9 @@ namespace izan::ui {
 // without the human's passphrase at the approval step.
 class SendPage {
 public:
-    SendPage(const std::filesystem::path& data_dir, VaultPage& vault);
+    // user_dir carries tokens.user.json, folded into the spendables.
+    SendPage(const std::filesystem::path& data_dir,
+        const std::filesystem::path& user_dir, VaultPage& vault);
     ~SendPage();
 
     void draw(GLFWwindow* window, const i18n::Catalog& tr);

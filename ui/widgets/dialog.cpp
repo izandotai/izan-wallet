@@ -17,30 +17,35 @@ namespace {
     }
 
     // The depth language painted onto the open dialog window: a faint
-    // light falling from the top edge — a solid strip through the
-    // rounded corners, then a smooth fade — and a crisp inner
-    // highlight line right under the rim.
+    // light falling from the top edge (dark themes), and a metallic
+    // rim in every theme — a crown highlight under the top edge, a
+    // floor shade over the bottom — the same three-stroke light the
+    // buttons wear.
     void paint_window_decor()
     {
         const DesignLanguage& dl = design();
-        if (!dl.dialog_wash || !kit_is_dark())
-            return; // light themes carry their own brightness
+        const bool dark = kit_is_dark();
         ImDrawList* draw = ImGui::GetWindowDrawList();
         const ImVec2 min = ImGui::GetWindowPos();
         const ImVec2 max(
             min.x + ImGui::GetWindowWidth(), min.y + ImGui::GetWindowHeight());
         const float r = ImGui::GetStyle().PopupRounding;
-        const float wash = ImGui::GetFontSize() * dl.wash_height;
-        const ImU32 lit = IM_COL32(255, 255, 255, dl.wash_alpha);
-        const ImU32 gone = IM_COL32(255, 255, 255, 0);
 
-        draw->AddRectFilled(
-            min, ImVec2(max.x, min.y + r), lit, r, ImDrawFlags_RoundCornersTop);
-        draw->AddRectFilledMultiColor(ImVec2(min.x, min.y + r),
-            ImVec2(max.x, min.y + wash), lit, lit, gone, gone);
+        if (dl.dialog_wash && dark) {
+            const float wash = ImGui::GetFontSize() * dl.wash_height;
+            const ImU32 lit = IM_COL32(255, 255, 255, dl.wash_alpha);
+            const ImU32 gone = IM_COL32(255, 255, 255, 0);
+            draw->AddRectFilled(min, ImVec2(max.x, min.y + r), lit, r,
+                ImDrawFlags_RoundCornersTop);
+            draw->AddRectFilledMultiColor(ImVec2(min.x, min.y + r),
+                ImVec2(max.x, min.y + wash), lit, lit, gone, gone);
+        }
+
         draw->AddLine(ImVec2(min.x + r, min.y + 1.0f),
             ImVec2(max.x - r, min.y + 1.0f),
-            IM_COL32(255, 255, 255, dl.rim_alpha));
+            IM_COL32(255, 255, 255, dark ? dl.rim_alpha + 18 : 165));
+        draw->AddLine(ImVec2(min.x + r, max.y - 1.0f),
+            ImVec2(max.x - r, max.y - 1.0f), IM_COL32(0, 0, 0, dark ? 78 : 34));
     }
 
     void push_dialog_style()

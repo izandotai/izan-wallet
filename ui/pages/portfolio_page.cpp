@@ -47,8 +47,8 @@ namespace {
 
 }
 
-PortfolioPage::PortfolioPage(
-    const std::filesystem::path& data_dir, VaultPage& vault)
+PortfolioPage::PortfolioPage(const std::filesystem::path& data_dir,
+    const std::filesystem::path& user_dir, VaultPage& vault)
     : m_vault(vault)
 {
     const std::string chainsJson = slurp(data_dir / "chains.json");
@@ -58,9 +58,20 @@ PortfolioPage::PortfolioPage(
         || config::classify("tokens.json", tokensJson)
             != config::Trust::ShippedDefault;
 
+    chains::ChainRegistry chains = chains::ChainRegistry::from_json(chainsJson);
+    assets::TokenRegistry tokens = assets::TokenRegistry::from_json(tokensJson);
+    // The person's own tokens ride a separate file, outside the
+    // shipped set and its digest — absent or malformed, the shipped
+    // set stands alone.
+    try {
+        tokens.extend(assets::TokenRegistry::from_json(
+                          slurp(user_dir / "tokens.user.json")),
+            chains);
+    } catch (const std::exception&) {
+    }
+
     m_reader = std::make_shared<assets::PortfolioReader>(
-        chains::ChainRegistry::from_json(chainsJson),
-        assets::TokenRegistry::from_json(tokensJson));
+        std::move(chains), std::move(tokens));
 }
 
 void PortfolioPage::refresh(const std::string& address)
@@ -69,6 +80,7 @@ void PortfolioPage::refresh(const std::string& address)
         return;
     m_status.clear();
     auto job = std::make_shared<Job>();
+    job->address = address;
     m_job = job;
     // The reader is single-driver: the refresh control stays disabled
     // until the worker reports back.
@@ -132,9 +144,13 @@ void PortfolioPage::draw(const i18n::Catalog& tr)
     if (m_job) {
         const int phase = m_job->phase.load();
         if (phase == 1) {
-            m_rows = std::move(m_job->rows);
-            m_fetched_at = ImGui::GetTime();
-            m_status.clear();
+            // Only the followed address's rows may land; anything else
+            // is a snapshot of a wallet that already left the stage.
+            if (m_job->address == m_followed) {
+                m_rows = std::move(m_job->rows);
+                m_fetched_at = ImGui::GetTime();
+                m_status.clear();
+            }
             m_job.reset();
         } else if (phase == 2) {
             if (m_job->error.find("address") != std::string::npos) {

@@ -245,7 +245,7 @@ int main(int argc, char** argv)
     std::optional<ui::PortfolioPage> portfolio;
     std::string portfolioError;
     try {
-        portfolio.emplace(ui::executable_dir() / "data", vault);
+        portfolio.emplace(ui::executable_dir() / "data", state_dir(), vault);
     } catch (const std::exception& e) {
         portfolioError = e.what();
     }
@@ -254,7 +254,7 @@ int main(int argc, char** argv)
     std::optional<ui::SendPage> send;
     std::string sendError;
     try {
-        send.emplace(ui::executable_dir() / "data", vault);
+        send.emplace(ui::executable_dir() / "data", state_dir(), vault);
     } catch (const std::exception& e) {
         sendError = e.what();
     }

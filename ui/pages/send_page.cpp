@@ -94,15 +94,23 @@ namespace {
 
 }
 
-SendPage::SendPage(const std::filesystem::path& data_dir, VaultPage& vault)
+SendPage::SendPage(const std::filesystem::path& data_dir,
+    const std::filesystem::path& user_dir, VaultPage& vault)
     : m_registry(
           chains::ChainRegistry::from_json(load_file(data_dir / "chains.json")))
     , m_vault(vault)
 {
     // The spendable menu: every chain's native coin, then its
     // configured tokens — choosing an asset chooses the chain with it.
-    const assets::TokenRegistry tokens
+    assets::TokenRegistry tokens
         = assets::TokenRegistry::from_json(load_file(data_dir / "tokens.json"));
+    try {
+        tokens.extend(assets::TokenRegistry::from_json(
+                          load_file(user_dir / "tokens.user.json")),
+            m_registry);
+    } catch (const std::exception&) {
+        // absent or malformed: the shipped set stands alone
+    }
     for (int i = 0; i < int(m_registry.all().size()); ++i) {
         const chains::ChainSpec& chain = m_registry.all()[std::size_t(i)];
         m_assets.push_back({ i, chain.symbol, "", chain.decimals });
@@ -275,8 +283,8 @@ void SendPage::draw_form(const i18n::Catalog& tr)
             // The same symbol lives on many chains; the row index is
             // the identity, the label is just the face.
             ImGui::PushID(i);
-            if (kit_menu_item(
-                    a.symbol.c_str(), c.name.c_str(), i == m_asset_index))
+            if (kit_menu_item_icon(a.symbol.c_str(), a.symbol.c_str(),
+                    c.name.c_str(), i == m_asset_index))
                 m_asset_index = i;
             ImGui::PopID();
         }

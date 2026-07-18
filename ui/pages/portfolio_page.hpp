@@ -24,7 +24,10 @@ public:
     // config throws (a wallet must not limp along); a config that
     // merely differs from the shipped defaults loads fine but raises
     // the modified-config warning in the page (§ config trust).
-    PortfolioPage(const std::filesystem::path& data_dir, VaultPage& vault);
+    // user_dir carries tokens.user.json — the person's own additions
+    // (memecoins, fresh listings) beyond the shipped basics.
+    PortfolioPage(const std::filesystem::path& data_dir,
+        const std::filesystem::path& user_dir, VaultPage& vault);
 
     void draw(const i18n::Catalog& tr);
 
@@ -49,6 +52,9 @@ private:
 
     struct Job {
         std::atomic<int> phase { 0 }; // 0 running, 1 ok, 2 failed
+        std::string address;          // whose rows these are — a wallet switch
+                                      // mid-flight must not land the old
+                                      // wallet's holdings on the new screen
         std::string error;
         std::vector<Row> rows;
     };
