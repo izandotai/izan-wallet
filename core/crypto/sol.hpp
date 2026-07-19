@@ -54,4 +54,15 @@ std::array<uint8_t, 64> sol_sign(
 // account address. Pure; no network.
 bool valid_sol_address(std::string_view text);
 
+// True iff the 32 bytes decompress to an ed25519 point. Program
+// derived addresses are defined by FAILING this — an address no key
+// can ever sign for.
+bool sol_on_curve(std::span<const uint8_t, 32> bytes);
+
+// The associated token account: the canonical PDA of (owner, token
+// program, mint) under the ATA program — where a wallet's SPL balance
+// of that mint lives. Throws on bad addresses or (astronomically) if
+// no bump escapes the curve.
+std::string sol_ata(std::string_view owner, std::string_view mint);
+
 }

@@ -11,8 +11,10 @@ extern "C" {
 #pragma GCC diagnostic pop
 #include <base58.h>
 #include <curves.h>
+#include <ed25519-donna/ed25519-donna.h>
 #include <ed25519-donna/ed25519.h>
 #include <memzero.h>
+#include <sha2.h>
 }
 
 namespace izan::crypto {
@@ -130,6 +132,51 @@ std::array<uint8_t, 64> sol_sign(
     std::array<uint8_t, 64> sig {};
     ed25519_sign(message.data(), message.size(), seed.data(), sig.data());
     return sig;
+}
+
+}
+
+namespace izan::crypto {
+
+bool sol_on_curve(std::span<const uint8_t, 32> bytes)
+{
+    ge25519 p;
+    return ge25519_unpack_negative_vartime(&p, bytes.data()) == 1;
+}
+
+std::string sol_ata(std::string_view owner, std::string_view mint)
+{
+    auto decode = [](std::string_view text) {
+        std::array<uint8_t, 32> out {};
+        std::size_t sz = out.size();
+        if (!b58tobin(out.data(), &sz, std::string(text).c_str())
+            || sz != out.size())
+            throw std::invalid_argument(
+                "sol: not a solana address: " + std::string(text));
+        return out;
+    };
+    const auto owner_pk = decode(owner);
+    const auto mint_pk = decode(mint);
+    const auto token_pg = decode("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+    const auto ata_pg = decode("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
+    static constexpr char kMarker[] = "ProgramDerivedAddress";
+    for (int bump = 255; bump >= 0; --bump) {
+        SHA256_CTX ctx;
+        sha256_Init(&ctx);
+        sha256_Update(&ctx, owner_pk.data(), owner_pk.size());
+        sha256_Update(&ctx, token_pg.data(), token_pg.size());
+        sha256_Update(&ctx, mint_pk.data(), mint_pk.size());
+        const uint8_t b = uint8_t(bump);
+        sha256_Update(&ctx, &b, 1);
+        sha256_Update(&ctx, ata_pg.data(), ata_pg.size());
+        sha256_Update(&ctx, reinterpret_cast<const uint8_t*>(kMarker),
+            sizeof kMarker - 1);
+        std::array<uint8_t, 32> candidate;
+        sha256_Final(&ctx, candidate.data());
+        if (!sol_on_curve(candidate))
+            return sol_address(candidate);
+    }
+    throw std::runtime_error("sol: no bump escapes the curve");
 }
 
 }
