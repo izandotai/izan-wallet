@@ -206,7 +206,7 @@ if(WIN32)
     )
     target_include_directories(izan_keyd PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(izan_keyd PUBLIC izan_ipc izan_secure
-        PRIVATE izan_crypto izan_soltx)
+        PRIVATE izan_crypto izan_soltx izan_btctx)
 endif()
 
 # L1 platform: HTTPS transport and the user's clock. TLS trust anchors

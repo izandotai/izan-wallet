@@ -13,10 +13,14 @@ extern "C" {
 #pragma GCC diagnostic ignored "-Wvolatile"
 #include <ecdsa.h>
 #include <memzero.h>
+#include <ripemd160.h>
 #include <secp256k1.h>
+#include <sha2.h>
 #include <sha3.h>
 #pragma GCC diagnostic pop
 }
+
+#include "domain/btc/btc_tx.hpp"
 
 #include "core/crypto/bip39.hpp"
 #include "core/crypto/btc.hpp"
@@ -233,6 +237,134 @@ SignedDigest sign_payload(const vault::Wallet& wallet,
         sign_with_raw(wallet.imported.front().key, out.digest, out);
     } else {
         throw std::invalid_argument("signer: wallet holds no signing key");
+    }
+    return out;
+}
+
+BtcSignedTx sign_btc_payload(const vault::Wallet& wallet,
+    std::span<const uint8_t> payload, uint32_t account, DerivePreset preset)
+{
+    // v1 spends native segwit only — the one script this signer can
+    // witness. Other formats receive; spending them is a later verse.
+    if (preset != DerivePreset::BtcSegwit)
+        throw std::invalid_argument(
+            "signer: only native-segwit spends for now");
+    if (payload.size() < 4)
+        throw std::invalid_argument("signer: btc payload truncated");
+    const uint32_t skel_len = uint32_t(payload[0]) | uint32_t(payload[1]) << 8
+        | uint32_t(payload[2]) << 16 | uint32_t(payload[3]) << 24;
+    if (4 + skel_len > payload.size())
+        throw std::invalid_argument("signer: btc payload truncated");
+    btc::TxPlan plan = btc::parse_skeleton(payload.subspan(4, skel_len));
+    const std::size_t n = plan.inputs.size();
+    if (payload.size() != 4 + skel_len + 8 * n)
+        throw std::invalid_argument("signer: one value per input, exactly");
+    uint64_t total_in = 0;
+    for (std::size_t i = 0; i < n; ++i) {
+        uint64_t v = 0;
+        for (int b = 0; b < 8; ++b)
+            v |= uint64_t(payload[4 + skel_len + 8 * i + std::size_t(b)])
+                << (8 * b);
+        plan.inputs[i].value = v;
+        total_in += v;
+    }
+
+    // The key: the account under the segwit path, or the imported
+    // secp key — curves never moonlight.
+    std::optional<crypto::HdKey> hd;
+    std::array<uint8_t, 33> pub {};
+    if (!wallet.entropy.empty()) {
+        hd = account_key(wallet.entropy, account, preset);
+        pub = hd->public_key_compressed();
+    } else if (!wallet.imported.empty()) {
+        if (account != 0)
+            throw std::invalid_argument(
+                "signer: a key wallet has a single address");
+        if (holds_ed25519(wallet))
+            throw std::invalid_argument(
+                "signer: an ed25519 key cannot sign bitcoin");
+        ecdsa_get_public_key33(
+            &secp256k1, wallet.imported.front().key.data(), pub.data());
+    } else {
+        throw std::invalid_argument("signer: wallet holds no signing key");
+    }
+    std::array<uint8_t, 20> h160;
+    {
+        uint8_t sha[32];
+        sha256_Raw(pub.data(), pub.size(), sha);
+        ripemd160(sha, sizeof sha, h160.data());
+    }
+    BtcSignedTx out;
+    out.signer = btc_preset_address(preset, pub);
+
+    // The whitelist: every output must be nameable, and a second
+    // output only if it is the account's own change coming home.
+    if (plan.outputs.size() > 2)
+        throw std::invalid_argument("signer: too many outputs to read");
+    const std::vector<uint8_t> own = btc::script_for_address(out.signer);
+    uint64_t total_out = 0;
+    bool change_seen = false;
+    for (std::size_t i = 0; i < plan.outputs.size(); ++i) {
+        const auto& o = plan.outputs[i];
+        if (btc::address_for_script(o.script).empty())
+            throw std::invalid_argument(
+                "signer: an output no address can name");
+        total_out += o.value;
+        if (plan.outputs.size() == 2 && o.script == own)
+            change_seen = true;
+    }
+    if (plan.outputs.size() == 2 && !change_seen)
+        throw std::invalid_argument(
+            "signer: the second output must be the account's own change");
+    if (total_in <= total_out)
+        throw std::invalid_argument("signer: fee comes out negative");
+    out.fee = total_in - total_out;
+
+    // One signature per input, over exactly what BIP-143 dictates.
+    std::vector<btc::Witness> witnesses;
+    for (std::size_t i = 0; i < n; ++i) {
+        const std::array<uint8_t, 32> digest
+            = btc::sighash_p2wpkh(plan, i, h160);
+        std::optional<crypto::EcdsaSignature> sig;
+        if (hd) {
+            sig = hd->sign_digest(digest);
+        } else {
+            SignedDigest raw;
+            raw.digest = digest;
+            sign_with_raw(wallet.imported.front().key, digest, raw);
+            sig = raw.sig;
+        }
+        if (!sig)
+            throw std::runtime_error("signer: signing failed");
+        // DER: SEQUENCE of two INTEGERs, minimal, sign-bit padded.
+        auto push_int
+            = [](std::vector<uint8_t>& d, const std::array<uint8_t, 32>& v) {
+                  std::size_t at = 0;
+                  while (at < 31 && v[at] == 0)
+                      ++at;
+                  const bool pad = v[at] & 0x80;
+                  d.push_back(0x02);
+                  d.push_back(uint8_t(32 - at + (pad ? 1 : 0)));
+                  if (pad)
+                      d.push_back(0x00);
+                  d.insert(d.end(), v.begin() + std::ptrdiff_t(at), v.end());
+              };
+        btc::Witness w;
+        std::vector<uint8_t> body;
+        push_int(body, sig->r);
+        push_int(body, sig->s);
+        w.signature_der = { 0x30, uint8_t(body.size()) };
+        w.signature_der.insert(w.signature_der.end(), body.begin(), body.end());
+        w.pubkey = pub;
+        witnesses.push_back(std::move(w));
+    }
+    out.tx = btc::assemble_tx(plan, witnesses);
+    out.txid = btc::txid_of(plan);
+    {
+        const auto skel = btc::encode_skeleton(plan);
+        uint8_t once[32];
+        sha256_Raw(skel.data(), skel.size(), once);
+        sha256_Raw(once, sizeof once, out.digest.data());
     }
     return out;
 }

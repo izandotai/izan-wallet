@@ -334,17 +334,21 @@ int child_main(int argc, char** argv)
                 // show: a bare System.Transfer. Unreadable = unsigned.
                 SignedDigest signature;
                 SolSignedMessage sol_signature;
-                bool is_sol = false;
+                BtcSignedTx btc_signature;
+                bool is_sol = false, is_btc = false;
                 try {
                     const ProposalBody body = parse_proposal(p->payload);
                     is_sol = preset_family(body.preset) == ChainFamily::Sol;
+                    is_btc = preset_family(body.preset) == ChainFamily::Btc;
                     if (is_sol) {
                         sol::parse_transfer_message(body.tx);
                         sol_signature = sign_sol_payload(
                             *opened, body.tx, body.account, body.preset);
-                    } else if (preset_family(body.preset) == ChainFamily::Btc) {
-                        throw std::invalid_argument(
-                            "keyd: btc signing not yet spoken");
+                    } else if (is_btc) {
+                        // Parse, judge, sign per input, assemble — one
+                        // act; the whitelist lives inside the signer.
+                        btc_signature = sign_btc_payload(
+                            *opened, body.tx, body.account, body.preset);
                     } else {
                         signature = sign_payload(
                             *opened, body.tx, body.account, body.preset);
@@ -361,16 +365,26 @@ int child_main(int argc, char** argv)
                 // state.
                 plane->queue.resolve(id, ProposalState::Approved);
                 char digestHex[65];
-                const auto& dig
-                    = is_sol ? sol_signature.digest : signature.digest;
+                const auto& dig = is_sol ? sol_signature.digest
+                    : is_btc             ? btc_signature.digest
+                                         : signature.digest;
                 sodium_bin2hex(
                     digestHex, sizeof digestHex, dig.data(), dig.size());
                 // One record per signature — the countable third leg of
                 // the sign ≡ approve ≡ audit identity.
                 plane->audit.append("proposal.approve id=" + std::to_string(id)
-                    + (is_sol ? " kind=sol-transfer" : "")
+                    + (is_sol        ? " kind=sol-transfer"
+                            : is_btc ? " kind=btc-send"
+                                     : "")
                     + " digest=" + digestHex + " signer="
-                    + (is_sol ? sol_signature.signer : signature.signer));
+                    + (is_sol        ? sol_signature.signer
+                            : is_btc ? btc_signature.signer
+                                     : signature.signer));
+                if (is_btc) {
+                    send_op(channel, Op::SignedBtc, btc_signature.tx.data(),
+                        btc_signature.tx.size());
+                    break;
+                }
                 if (is_sol) {
                     send_op(channel, Op::SignedSol, sol_signature.sig.data(),
                         sol_signature.sig.size());

@@ -230,6 +230,29 @@ std::optional<ApprovedSignature> KeydClient::approve(
     return sig;
 }
 
+std::optional<std::vector<uint8_t>> KeydClient::approve_btc(
+    uint64_t id, const SecureBytes& passphrase)
+{
+    std::vector<uint8_t> frame(9 + passphrase.size());
+    frame[0] = uint8_t(Op::Approve);
+    put_u64le(frame.data() + 1, id);
+    if (!passphrase.empty())
+        std::memcpy(frame.data() + 9, passphrase.data(), passphrase.size());
+    std::optional<SecureBytes> reply = request(frame.data(), frame.size());
+    sodium_memzero(frame.data(), frame.size());
+    if (!reply || reply->empty()) {
+        m_last_error = "channel broken";
+        return std::nullopt;
+    }
+    if (reply->data()[0] != uint8_t(Op::SignedBtc) || reply->size() < 2) {
+        m_last_error.assign(reinterpret_cast<const char*>(reply->data()) + 1,
+            reply->size() - 1);
+        return std::nullopt;
+    }
+    return std::vector<uint8_t>(
+        reply->data() + 1, reply->data() + reply->size());
+}
+
 std::optional<std::array<uint8_t, 64>> KeydClient::approve_sol(
     uint64_t id, const SecureBytes& passphrase)
 {

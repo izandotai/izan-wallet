@@ -47,6 +47,7 @@ enum class Op : uint8_t {
     Signed = 0x47,       // body: y_parity(1) || r(32) || s(32)
     AddressIs = 0x48,    // body: kind(1) || utf-8 EIP-55 address
     SignedSol = 0x49,    // body: ed25519 signature (64) over the message
+    SignedBtc = 0x4a,    // body: the fully signed transaction, wire bytes
 };
 
 // First byte of a RootSecret body.

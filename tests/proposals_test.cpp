@@ -31,6 +31,7 @@ extern "C" {
 #include "core/crypto/bip39.hpp"
 #include "core/crypto/eth.hpp"
 #include "core/secure/vault.hpp"
+#include "domain/btc/btc_tx.hpp"
 #include "domain/sol/sol_tx.hpp"
 #include "keyd/audit.hpp"
 #include "keyd/client.hpp"
@@ -605,4 +606,72 @@ TEST_CASE("keyd proposals: a solana transfer signs, anything else is refused")
     REQUIRE(badId);
     CHECK(!keyd.approve_sol(*badId, sb_from("correct horse")));
     CHECK(query_state(keyd.pipe_name(), *badId) == ProposalState::Pending);
+}
+
+TEST_CASE("keyd proposals: a bitcoin spend signs whole, or not at all")
+{
+    const std::string vaultPath = make_test_vault("correct horse");
+    const std::string auditPath = temp_file("proposals_btc.audit");
+    std::filesystem::remove(auditPath);
+    KeydClient keyd = KeydClient::spawn(self_exe(), vaultPath, auditPath);
+    REQUIRE(keyd.unlock(sb_from("correct horse")));
+
+    const uint8_t segwit = uint8_t(izan::keyd::DerivePreset::BtcSegwit);
+    const auto own = keyd.address(0, segwit);
+    REQUIRE(own);
+    REQUIRE(own->starts_with("bc1q"));
+
+    // A spend: one fake coin in, the recipient plus our own change.
+    izan::btc::TxPlan plan;
+    izan::btc::TxPlan::In in;
+    in.txid_be.fill(0x42);
+    in.vout = 1;
+    plan.inputs = { in };
+    izan::btc::TxPlan::Out pay;
+    pay.value = 30000;
+    pay.script
+        = izan::btc::script_for_address("1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2");
+    izan::btc::TxPlan::Out change;
+    change.value = 18000;
+    change.script = izan::btc::script_for_address(*own);
+    plan.outputs = { pay, change };
+
+    auto payload = [&](const izan::btc::TxPlan& p, uint64_t value) {
+        const auto skel = izan::btc::encode_skeleton(p);
+        std::vector<uint8_t> out(4);
+        out[0] = uint8_t(skel.size());
+        out[1] = uint8_t(skel.size() >> 8);
+        out.insert(out.end(), skel.begin(), skel.end());
+        for (int b = 0; b < 8; ++b)
+            out.push_back(uint8_t(value >> (8 * b)));
+        return out;
+    };
+    const auto env = izan::keyd::make_envelope(
+        izan::keyd::DerivePreset::BtcSegwit, 0, payload(plan, 50000));
+    const auto id = keyd.submit_ui(env);
+    REQUIRE(id);
+    const auto tx = keyd.approve_btc(*id, sb_from("correct horse"));
+    REQUIRE(tx);
+    // Wire shape: version 2, the segwit marker pair right behind.
+    REQUIRE(tx->size() > 100);
+    CHECK((*tx)[0] == 0x02);
+    CHECK((*tx)[4] == 0x00);
+    CHECK((*tx)[5] == 0x01);
+    CHECK(!keyd.approve_btc(*id, sb_from("correct horse"))); // spent
+
+    // The whitelist: change to a stranger is not change.
+    auto crooked = plan;
+    crooked.outputs[1].script
+        = izan::btc::script_for_address("3NVZWnhKt53ukKw4Qm217Zk57FE8VnKjH2");
+    const auto badId = keyd.submit_ui(izan::keyd::make_envelope(
+        izan::keyd::DerivePreset::BtcSegwit, 0, payload(crooked, 50000)));
+    REQUIRE(badId);
+    CHECK(!keyd.approve_btc(*badId, sb_from("correct horse")));
+    CHECK(query_state(keyd.pipe_name(), *badId) == ProposalState::Pending);
+
+    // A fee that comes out negative is a lie the signer refuses.
+    const auto poorId = keyd.submit_ui(izan::keyd::make_envelope(
+        izan::keyd::DerivePreset::BtcSegwit, 0, payload(plan, 10000)));
+    REQUIRE(poorId);
+    CHECK(!keyd.approve_btc(*poorId, sb_from("correct horse")));
 }

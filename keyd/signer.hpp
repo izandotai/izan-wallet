@@ -114,6 +114,25 @@ SolSignedMessage sign_sol_payload(const vault::Wallet& wallet,
     std::span<const uint8_t> message, uint32_t account = 0,
     DerivePreset preset = DerivePreset::SolPhantom);
 
+// The Bitcoin act: parse, judge, sign per input, assemble — one call,
+// because the trust plane must never hand out loose signatures for a
+// transaction it has not read whole. The payload is
+// u32le(skeleton_len) || skeleton || u64le value per input; values
+// need no trust — BIP-143 signs them, so a lie voids the signature.
+// The whitelist: P2WPKH spends under the native-segwit preset only,
+// one or two outputs, every output nameable as an address, and a
+// second output only if it pays the account itself (the change rule).
+struct BtcSignedTx {
+    std::vector<uint8_t> tx;        // wire bytes, ready to broadcast
+    std::string txid;               // as explorers will print it
+    std::array<uint8_t, 32> digest; // sha256d(skeleton) — audit anchor
+    std::string signer;             // the account's bc1q address
+    uint64_t fee = 0;               // inputs minus outputs, verified > 0
+};
+
+BtcSignedTx sign_btc_payload(const vault::Wallet& wallet,
+    std::span<const uint8_t> payload, uint32_t account, DerivePreset preset);
+
 // The account's address — the same key selection as sign_payload,
 // stopping at the public half; formatted for the preset's chain.
 std::string account_address(const vault::Wallet& wallet, uint32_t account = 0,

@@ -89,6 +89,12 @@ public:
     std::optional<std::vector<PendingItem>> pending();
     std::optional<std::pair<Provenance, std::vector<uint8_t>>> fetch(
         uint64_t id);
+    // The Bitcoin twin: same request, the fully signed wire bytes
+    // back — keyd assembles inside the trust plane, the UI only
+    // broadcasts what it is handed.
+    std::optional<std::vector<uint8_t>> approve_btc(
+        uint64_t id, const secure::SecureBytes& passphrase);
+
     // The Solana twin: same request, a 64-byte ed25519 signature back.
     // Callers know their proposal's family from the envelope they
     // built; asking with the wrong twin reads as an error reply.
