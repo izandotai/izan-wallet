@@ -5,10 +5,9 @@
 # job summary on every run.
 name: build
 
+# Manual only — the button on the Actions tab; nothing runs on its
+# own on push or PR.
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
 
 jobs:
