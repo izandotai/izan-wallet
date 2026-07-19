@@ -347,8 +347,38 @@ void SwapPage::draw_form(const i18n::Catalog& tr)
                 m_buy_index = i;
             ImGui::PopID();
         }
+        kit_hairline();
+        // Everything the aggregator can route, not just the shipped
+        // shortlist — the catalog dialog takes it from here.
+        if (kit_select_item(tr("swap.more"), false)) {
+            m_search.fill('\0');
+            m_open_search = true;
+        }
         kit_select_end();
     }
+    if (m_open_search) {
+        kit_dialog_open("##swap-search");
+        m_open_search = false;
+        const uint64_t chain_id = selected_chain().chain_id;
+        if (!m_catalog.contains(chain_id) && !m_catalog_job) {
+            auto job = std::make_shared<CatalogJob>();
+            job->chain_id = chain_id;
+            m_catalog_job = job;
+            std::thread([job]() {
+                try {
+                    job->list = swap::fetch_token_list(job->chain_id);
+                    job->phase.store(1);
+                } catch (const std::exception& e) {
+                    job->error = e.what();
+                    job->phase.store(2);
+                } catch (...) {
+                    job->error = "worker failed";
+                    job->phase.store(2);
+                }
+            }).detach();
+        }
+    }
+    draw_search_dialog(tr);
 
     kit_vspace(0.6f);
 
@@ -567,6 +597,86 @@ void SwapPage::confirm_swap()
             job->phase.store(2);
         }
     }).detach();
+}
+
+void SwapPage::draw_search_dialog(const i18n::Catalog& tr)
+{
+    if (m_catalog_job && m_catalog_job->phase.load() != 0) {
+        if (m_catalog_job->phase.load() == 1)
+            m_catalog[m_catalog_job->chain_id] = std::move(m_catalog_job->list);
+        m_catalog_job.reset();
+    }
+    if (!kit_dialog_begin("##swap-search"))
+        return;
+    const float em = ImGui::GetFontSize();
+    const float content = em * design().dialog_width;
+    ImGui::Dummy(ImVec2(content, 0.0f)); // constant width, list or not
+    kit_dialog_field_width();
+    kit_text_field("##swap-search-box", tr("swap.search"), m_search.data(),
+        m_search.size());
+    kit_vspace(0.3f);
+
+    const uint64_t chain_id = selected_chain().chain_id;
+    const auto cached = m_catalog.find(chain_id);
+    if (cached == m_catalog.end()) {
+        ImGui::SetCursorPosX(
+            ImGui::GetCursorPosX() + (content - em * 1.4f) * 0.5f);
+        kit_spinner(0.7f);
+        kit_vspace(0.5f);
+    } else {
+        std::string needle(m_search.data());
+        std::transform(needle.begin(), needle.end(), needle.begin(),
+            [](unsigned char c) { return char(std::tolower(c)); });
+        auto matches = [&](const swap::TokenListing& t) {
+            if (needle.empty())
+                return true;
+            auto has = [&](const std::string& hay) {
+                std::string low = hay;
+                std::transform(low.begin(), low.end(), low.begin(),
+                    [](unsigned char c) { return char(std::tolower(c)); });
+                return low.find(needle) != std::string::npos;
+            };
+            return has(t.symbol) || has(t.name) || has(t.address);
+        };
+        int shown = 0;
+        ImGui::BeginChild("##swap-search-list", ImVec2(content, em * 14.0f));
+        for (const swap::TokenListing& t : cached->second) {
+            if (!matches(t))
+                continue;
+            if (++shown > 50) // type more, scroll less
+                break;
+            ImGui::PushID(shown);
+            if (kit_menu_item_icon(t.symbol.c_str(), t.symbol.c_str(),
+                    t.name.c_str(), false, content)) {
+                // An already-listed address is re-selected, not
+                // duplicated; anything new becomes a session asset.
+                int found = -1;
+                for (int i = 0; i < int(m_assets.size()); ++i)
+                    if (m_assets[std::size_t(i)].chain == sell().chain
+                        && m_assets[std::size_t(i)].token == t.address)
+                        found = i;
+                if (found < 0) {
+                    m_assets.push_back({ sell().chain, t.symbol,
+                        t.address == swap::kNativeToken ? "" : t.address,
+                        t.decimals });
+                    found = int(m_assets.size()) - 1;
+                }
+                if (found != m_sell_index)
+                    m_buy_index = found;
+                kit_dialog_close();
+            }
+            ImGui::PopID();
+        }
+        if (shown == 0)
+            centered_caption(tr("swap.search.empty"));
+        ImGui::EndChild();
+    }
+    kit_vspace(0.3f);
+    const float button_w = kit_button_width(tr("ui.back"));
+    ImGui::SetCursorPosX((ImGui::GetWindowWidth() - button_w) * 0.5f);
+    if (kit_subtle_button(tr("ui.back")))
+        kit_dialog_close();
+    kit_dialog_end();
 }
 
 void SwapPage::draw_confirm_dialog(const i18n::Catalog& tr)

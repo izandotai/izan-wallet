@@ -2,9 +2,11 @@
 
 #include <array>
 #include <atomic>
+#include <cctype>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -82,6 +84,7 @@ private:
     };
 
     void draw_form(const i18n::Catalog& tr);
+    void draw_search_dialog(const i18n::Catalog& tr);
     void draw_confirm_dialog(const i18n::Catalog& tr);
     void begin_review();
     void start_quote(bool requote); // the route/allowance/nonce/fees job
@@ -109,6 +112,21 @@ private:
     std::vector<Asset> m_assets;
     int m_sell_index = 0;
     int m_buy_index = 0;
+
+    // The searchable catalog: the aggregator's per-chain token menu,
+    // fetched once per chain on first search and cached for the
+    // session. Picking a row mints a session-local Asset.
+    struct CatalogJob {
+        std::atomic<int> phase { 0 }; // 0 running, 1 ok, 2 failed
+        uint64_t chain_id = 0;
+        std::vector<swap::TokenListing> list;
+        std::string error;
+    };
+
+    std::map<uint64_t, std::vector<swap::TokenListing>> m_catalog;
+    std::shared_ptr<CatalogJob> m_catalog_job;
+    std::array<char, 64> m_search {};
+    bool m_open_search = false;
     std::array<char, 32> m_amount {};
     std::array<char, 256> m_pass {};
     bool m_ime_disabled = false;
