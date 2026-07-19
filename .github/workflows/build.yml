@@ -1,8 +1,9 @@
 # The reproducibility spine: anyone can rebuild izan from public
-# source in a scripted environment and compare hashes against a
-# release. The toolchain is MSYS2's mingw64 lane — fully scripted,
-# no hand-installed compilers — and the artifact digest lands in the
-# job summary on every run.
+# source with a pinned, checksum-verified toolchain and compare
+# hashes against a release. The compiler is the same WinLibs build
+# the wallet ships from — GCC 14.2.0 UCRT posix-seh r3 — not
+# whatever a package manager carries this week; CMake and Ninja are
+# pinned to the same versions for the same reason.
 name: build
 
 # Manual only — the button on the Actions tab; nothing runs on its
@@ -10,55 +11,82 @@ name: build
 on:
   workflow_dispatch:
 
+env:
+  WINLIBS_URL: https://github.com/brechtsanders/winlibs_mingw/releases/download/14.2.0posix-12.0.0-ucrt-r3/winlibs-x86_64-posix-seh-gcc-14.2.0-mingw-w64ucrt-12.0.0-r3.zip
+  WINLIBS_SHA256: 88868d745b807f083a117ff69348d8bc021ad7389aa503379dbed1866efcaeb9
+  CMAKE_URL: https://github.com/Kitware/CMake/releases/download/v3.31.5/cmake-3.31.5-windows-x86_64.zip
+  CMAKE_SHA256: d4d2d4b9ccd68dae975a066fcd42ea9807ef40f79ee6971923fd3788e7917585
+  NINJA_URL: https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-win.zip
+  NINJA_SHA256: f550fec705b6d6ff58f2db3c374c2277a37691678d6aba463adcbb129108467a
+
 jobs:
   windows:
     runs-on: windows-latest
     timeout-minutes: 90
-    defaults:
-      run:
-        shell: msys2 {0}
     steps:
       - uses: actions/checkout@v4
 
-      # UCRT64, not MINGW64: the local toolchain is a UCRT GCC and the
-      # shipped binary links the UCRT — the CI lane must speak the
-      # same runtime or the artifacts aren't comparable.
+      # MSYS2 supplies only the POSIX build shell (make and perl for
+      # the OpenSSL ExternalProject) — no compilers from pacman.
       - uses: msys2/setup-msys2@v2
         with:
           msystem: UCRT64
           update: false
           install: >-
-            mingw-w64-ucrt-x86_64-gcc
-            mingw-w64-ucrt-x86_64-cmake
-            mingw-w64-ucrt-x86_64-ninja
             make
             perl
             git
 
-      # OpenSSL is an ExternalProject and dominates a cold build;
-      # everything FetchContent lands under build/_deps as well. The
-      # key follows the dependency pins — edit a pin, rebuild cold.
+      - name: Fetch pinned toolchain
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force C:\tc | Out-Null
+          function Fetch($url, $sha, $out) {
+            Invoke-WebRequest -Uri $url -OutFile $out
+            $got = (Get-FileHash $out -Algorithm SHA256).Hash.ToLower()
+            if ($got -ne $sha) { throw "checksum mismatch for ${out}: $got" }
+          }
+          Fetch $env:WINLIBS_URL $env:WINLIBS_SHA256 C:\tc\winlibs.zip
+          Fetch $env:CMAKE_URL   $env:CMAKE_SHA256   C:\tc\cmake.zip
+          Fetch $env:NINJA_URL   $env:NINJA_SHA256   C:\tc\ninja.zip
+          Expand-Archive C:\tc\winlibs.zip C:\tc
+          Expand-Archive C:\tc\cmake.zip C:\tc
+          Expand-Archive C:\tc\ninja.zip C:\tc\ninja
+          & C:\tc\mingw64\bin\gcc.exe --version | Select-Object -First 1
+          & C:\tc\cmake-3.31.5-windows-x86_64\bin\cmake.exe --version | Select-Object -First 1
+          & C:\tc\ninja\ninja.exe --version
+
       - name: Cache third-party builds
         uses: actions/cache@v4
         with:
           path: |
             build/_deps
             build/deps
-          key: deps-${{ runner.os }}-${{ hashFiles('cmake/**', 'CMakeLists.txt') }}
+          key: deps-winlibs-r3-${{ hashFiles('cmake/**', 'CMakeLists.txt') }}
 
       - name: Configure
-        run: >-
-          cmake -S . -B build -G Ninja
-          -DCMAKE_BUILD_TYPE=Release
-          -DCMAKE_TLS_CAINFO=/usr/ssl/certs/ca-bundle.crt
+        shell: msys2 {0}
+        run: |
+          export PATH="/c/tc/mingw64/bin:/c/tc/cmake-3.31.5-windows-x86_64/bin:/c/tc/ninja:$PATH"
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++
 
       - name: Build
-        run: cmake --build build
+        shell: msys2 {0}
+        run: |
+          export PATH="/c/tc/mingw64/bin:/c/tc/cmake-3.31.5-windows-x86_64/bin:/c/tc/ninja:$PATH"
+          cmake --build build
 
       - name: Test
-        run: ctest --test-dir build --output-on-failure
+        shell: msys2 {0}
+        run: |
+          export PATH="/c/tc/mingw64/bin:/c/tc/cmake-3.31.5-windows-x86_64/bin:/c/tc/ninja:$PATH"
+          ctest --test-dir build --output-on-failure
 
       - name: Digest
+        shell: msys2 {0}
         run: |
           cd build
           sha256sum izan.exe izan_ui_smoke.exe izan_tests.exe | tee SHA256SUMS
