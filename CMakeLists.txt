@@ -54,14 +54,6 @@ FetchContent_Declare(Boost
     EXCLUDE_FROM_ALL
 )
 
-# trezor-crypto lives inside the trezor-firmware monorepo; pin a release
-# tarball and build only the modules we use.
-FetchContent_Declare(trezor_firmware
-    URL https://github.com/trezor/trezor-firmware/archive/refs/tags/core/v2.8.3.tar.gz
-    DOWNLOAD_EXTRACT_TIMESTAMP ON
-    SOURCE_SUBDIR cmake-subdir-does-not-exist # sources only, no add_subdirectory
-    EXCLUDE_FROM_ALL
-)
 FetchContent_Declare(doctest
     URL https://github.com/doctest/doctest/archive/refs/tags/v2.4.11.tar.gz
     DOWNLOAD_EXTRACT_TIMESTAMP ON
@@ -82,104 +74,25 @@ FetchContent_Declare(glaze
     DOWNLOAD_EXTRACT_TIMESTAMP ON
     EXCLUDE_FROM_ALL
 )
-FetchContent_MakeAvailable(trezor_firmware doctest sodium glaze Boost)
-
-set(TREZOR ${trezor_firmware_SOURCE_DIR}/crypto)
-
-# BIP-39 needs only the hash/KDF subset. Randomness comes from the OS CSPRNG
-# (platform/rand.c); upstream rand.c is a weak placeholder and is never built.
-add_library(izan_trezor STATIC
-    ${TREZOR}/bip39.c
-    ${TREZOR}/bip39_english.c
-    ${TREZOR}/hmac.c
-    ${TREZOR}/memzero.c
-    ${TREZOR}/pbkdf2.c
-    ${TREZOR}/sha2.c
-    # BIP-32 and its hard dependencies (bip32.c pulls in ed25519/aes
-    # unconditionally; ed25519 doubles for Solana later)
-    ${TREZOR}/address.c
-    ${TREZOR}/base58.c
-    ${TREZOR}/bignum.c
-    ${TREZOR}/bip32.c
-    ${TREZOR}/blake256.c
-    ${TREZOR}/blake2b.c
-    ${TREZOR}/blake2s.c
-    ${TREZOR}/curves.c
-    ${TREZOR}/ecdsa.c
-    ${TREZOR}/groestl.c
-    ${TREZOR}/hasher.c
-    ${TREZOR}/hmac_drbg.c
-    ${TREZOR}/nist256p1.c
-    ${TREZOR}/rfc6979.c
-    ${TREZOR}/ripemd160.c
-    ${TREZOR}/secp256k1.c
-    ${TREZOR}/sha3.c
-    ${TREZOR}/segwit_addr.c
-    ${TREZOR}/ed25519-donna/curve25519-donna-32bit.c
-    ${TREZOR}/ed25519-donna/curve25519-donna-helpers.c
-    ${TREZOR}/ed25519-donna/curve25519-donna-scalarmult-base.c
-    ${TREZOR}/ed25519-donna/ed25519.c
-    ${TREZOR}/ed25519-donna/ed25519-donna-32bit-tables.c
-    ${TREZOR}/ed25519-donna/ed25519-donna-basepoint-table.c
-    ${TREZOR}/ed25519-donna/ed25519-donna-impl-base.c
-    ${TREZOR}/ed25519-donna/ed25519-keccak.c
-    ${TREZOR}/ed25519-donna/ed25519-sha3.c
-    ${TREZOR}/ed25519-donna/modm-donna-32bit.c
-    ${TREZOR}/aes/aes_modes.c
-    ${TREZOR}/aes/aescrypt.c
-    ${TREZOR}/aes/aeskey.c
-    ${TREZOR}/aes/aestab.c
-    platform/rand.c
+# The chain-crypto foundation, its own repository. For day-to-day work
+# set FETCHCONTENT_SOURCE_DIR_IZAN_CRYPTO to a local checkout; releases
+# pin the commit.
+FetchContent_Declare(izan_crypto
+    GIT_REPOSITORY https://github.com/izandotai/izan-crypto.git
+    GIT_TAG 2ee297d
+    EXCLUDE_FROM_ALL
 )
-target_include_directories(izan_trezor PUBLIC ${TREZOR})
-# Upstream caches the mnemonic→seed mapping in static memory; that violates
-# the rule that all key material must be wipeable, so the caches stay off.
-target_compile_definitions(izan_trezor PUBLIC USE_KECCAK=1
-    USE_BIP39_CACHE=0 USE_BIP32_CACHE=0)
-# trezor's blake2b and ed25519-donna ge25519_* collide with libsodium's
-# internal symbols once both archives meet in one binary; rename at
-# compile time.
-target_compile_definitions(izan_trezor PRIVATE
-    blake2b=izan_trezor_blake2b blake2b_Key=izan_trezor_blake2b_Key
-    blake2b_init_param=izan_trezor_blake2b_init_param
-    ge25519_add=izan_trezor_ge25519_add
-    ge25519_scalarmult=izan_trezor_ge25519_scalarmult
-    ge25519_double_scalarmult_vartime=izan_trezor_ge25519_dsm_vartime)
-target_compile_options(izan_trezor PRIVATE -w)
-if(WIN32)
-    target_link_libraries(izan_trezor PUBLIC bcrypt)
-endif()
+FetchContent_MakeAvailable(doctest sodium glaze Boost izan_crypto)
 
-# Exact integer money: U256 amounts and decimal conversion, header-only.
-add_library(izan_units INTERFACE)
-target_include_directories(izan_units INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
-
-# Key-material hygiene: guarded SecureBytes container and the encrypted
-# vault file, both over libsodium.
-add_library(izan_secure STATIC
+# The encrypted vault file: an izan product asset, staying home while
+# SecureBytes and the primitives live in izan-crypto.
+add_library(izan_vault STATIC
     core/secure/vault.cpp
 )
-target_include_directories(izan_secure PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(izan_secure PUBLIC sodium)
-
-add_library(izan_crypto STATIC
-    core/crypto/bip39.cpp
-    core/crypto/btc.cpp
-    core/crypto/eth.cpp
-    core/crypto/hd.cpp
-    core/crypto/secret_import.cpp
-    core/crypto/sol.cpp
-)
-target_include_directories(izan_crypto PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(izan_crypto PUBLIC izan_trezor izan_secure)
+target_include_directories(izan_vault PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(izan_vault PUBLIC izan_secure)
 
 # ABI words and selectors for contract reads (keccak from trezor).
-add_library(izan_codec STATIC
-    core/codec/abi.cpp
-    core/codec/rlp.cpp
-)
-target_include_directories(izan_codec PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(izan_codec PUBLIC izan_units PRIVATE izan_trezor)
 
 # L1 platform: process separation primitives — anonymous pipes, the
 # secretstream password channel, whitelist-inherited child spawn.
@@ -205,7 +118,7 @@ if(WIN32)
         keyd/signer.cpp
     )
     target_include_directories(izan_keyd PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(izan_keyd PUBLIC izan_ipc izan_secure
+    target_link_libraries(izan_keyd PUBLIC izan_ipc izan_vault
         PRIVATE izan_crypto izan_soltx izan_btctx)
 endif()
 
@@ -224,20 +137,7 @@ if(WIN32)
     target_link_libraries(izan_platform PUBLIC ws2_32 mswsock)
 endif()
 
-# Offline transaction grammar shared by the trust plane and the
-# domain: the encoder the send flow speaks and the whitelist parser
-# the approval screen reads. No network, ever.
-add_library(izan_soltx STATIC
-    domain/sol/sol_tx.cpp
-)
-target_include_directories(izan_soltx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(izan_soltx PRIVATE izan_crypto)
 
-add_library(izan_btctx STATIC
-    domain/btc/btc_tx.cpp
-)
-target_include_directories(izan_btctx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(izan_btctx PRIVATE izan_crypto)
 
 # L3 domain: chain registry and RPC plumbing. Links primitives only —
 # never the trust plane.
@@ -251,7 +151,6 @@ add_library(izan_domain STATIC
     domain/assets/portfolio.cpp
     domain/assets/prices.cpp
     domain/assets/token_registry.cpp
-    domain/tx/eip1559.cpp
     domain/tx/txflow.cpp
     domain/swap/lifi.cpp
     domain/btc/coin_select.cpp
@@ -259,7 +158,7 @@ add_library(izan_domain STATIC
     domain/sol/solana.cpp
 )
 target_include_directories(izan_domain PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(izan_domain PUBLIC izan_units izan_soltx izan_btctx
+target_link_libraries(izan_domain PUBLIC izan_units izan_soltx izan_btctx izan_ethtx
     PRIVATE glaze::glaze izan_codec izan_crypto izan_platform)
 
 # UI string catalogs. Headless on purpose: pages read it, tests audit
@@ -405,27 +304,17 @@ endif()
 enable_testing()
 add_executable(izan_tests
     tests/main.cpp
-    tests/bip39_test.cpp
-    tests/btc_test.cpp
-    tests/eth_test.cpp
-    tests/hd_test.cpp
-    tests/sol_test.cpp
-    tests/secure_bytes_test.cpp
     tests/vault_test.cpp
-    tests/units_test.cpp
     tests/chains_test.cpp
     tests/net_test.cpp
-    tests/abi_test.cpp
     tests/assets_test.cpp
     tests/portfolio_test.cpp
     tests/prices_test.cpp
     tests/history_test.cpp
     tests/config_trust_test.cpp
     tests/i18n_test.cpp
-    tests/tx_test.cpp
     tests/txflow_test.cpp
     tests/family_test.cpp
-    tests/import_test.cpp
     tests/wallet_ui_test.cpp
     tests/keyd_test.cpp
     tests/linkbits_test.cpp
