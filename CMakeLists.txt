@@ -233,6 +233,12 @@ add_library(izan_soltx STATIC
 target_include_directories(izan_soltx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(izan_soltx PRIVATE izan_crypto)
 
+add_library(izan_btctx STATIC
+    domain/btc/btc_tx.cpp
+)
+target_include_directories(izan_btctx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(izan_btctx PRIVATE izan_crypto)
+
 # L3 domain: chain registry and RPC plumbing. Links primitives only —
 # never the trust plane.
 add_library(izan_domain STATIC
@@ -253,7 +259,7 @@ add_library(izan_domain STATIC
     domain/sol/solana.cpp
 )
 target_include_directories(izan_domain PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(izan_domain PUBLIC izan_units izan_soltx
+target_link_libraries(izan_domain PUBLIC izan_units izan_soltx izan_btctx
     PRIVATE glaze::glaze izan_codec izan_crypto izan_platform)
 
 # UI string catalogs. Headless on purpose: pages read it, tests audit
