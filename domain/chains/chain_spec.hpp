@@ -20,6 +20,17 @@ struct ChainSpec {
                                   // (a keyless Blockscout instance);
                                   // empty = no transaction history
     bool testnet = false;         // test money: never priced in fiat
+    // Chain family: "evm" (JSON-RPC + ERC-20), "sol" (Solana RPC),
+    // "btc" (an esplora HTTP API in `rpc`). Every EVM-only consumer
+    // filters on this — adding a family must never disturb another.
+    // For non-EVM entries chain_id is just a unique registry key
+    // (501 = Solana's BIP-44 coin type, 8332 = Bitcoin's RPC port).
+    std::string family = "evm";
+
+    bool is_evm() const
+    {
+        return family == "evm";
+    }
 };
 
 class ChainRegistry {

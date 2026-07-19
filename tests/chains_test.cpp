@@ -4,6 +4,7 @@
 #include <sstream>
 #include <string>
 
+#include "domain/assets/portfolio.hpp"
 #include "domain/chains/chain_spec.hpp"
 #include "domain/chains/jsonrpc.hpp"
 
@@ -124,4 +125,47 @@ TEST_CASE("jsonrpc response parsing: result, error, mismatch")
     // A non-string result must not silently stringify.
     CHECK_THROWS(izan::chains::result_string(
         R"({"jsonrpc":"2.0","id":7,"result":26})", 7));
+}
+
+TEST_CASE("chain families parse, default to evm, and refuse strangers")
+{
+    using izan::chains::ChainRegistry;
+    const ChainRegistry reg = ChainRegistry::from_json(R"([
+        {"chain_id":1,"name":"Ethereum","symbol":"ETH","decimals":18,
+         "rpc":["https://example.org"]},
+        {"chain_id":501,"name":"Solana","symbol":"SOL","decimals":9,
+         "family":"sol","rpc":["https://example.org"]},
+        {"chain_id":8332,"name":"Bitcoin","symbol":"BTC","decimals":8,
+         "family":"btc","rpc":["https://example.org"]}
+    ])");
+    REQUIRE(reg.all().size() == 3);
+    // Absent family means evm — every pre-family config keeps meaning
+    // exactly what it meant.
+    CHECK(reg.all()[0].is_evm());
+    CHECK(reg.all()[0].family == "evm");
+    CHECK(reg.all()[1].family == "sol");
+    CHECK_FALSE(reg.all()[1].is_evm());
+    CHECK(reg.all()[2].family == "btc");
+    // A family the wallet has no engine for is a config typo, loudly.
+    CHECK_THROWS(ChainRegistry::from_json(R"([
+        {"chain_id":2,"name":"X","symbol":"X",
+         "family":"cosmos","rpc":["https://example.org"]}
+    ])"));
+}
+
+TEST_CASE("the shipped config's non-evm chains never reach the evm reader")
+{
+    using izan::chains::ChainRegistry;
+    const ChainRegistry reg = ChainRegistry::from_json(R"([
+        {"chain_id":501,"name":"Solana","symbol":"SOL","decimals":9,
+         "family":"sol","rpc":["https://example.org"]}
+    ])");
+    izan::assets::PortfolioReader reader(
+        reg, izan::assets::TokenRegistry::from_json("[]"));
+    // A registry with only a sol chain yields zero rows — and, more to
+    // the point, no eth_call ever leaves for a Solana endpoint (a
+    // network attempt against example.org would surface as a row).
+    const auto rows
+        = reader.snapshot("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045");
+    CHECK(rows.empty());
 }

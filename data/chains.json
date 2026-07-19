@@ -70,5 +70,31 @@
         ],
         "explorer": "https://sepolia.etherscan.io",
         "history": "https://eth-sepolia.blockscout.com"
+    },
+    {
+        "chain_id": 501,
+        "name": "Solana",
+        "symbol": "SOL",
+        "decimals": 9,
+        "family": "sol",
+        "rpc": [
+            "https://api.mainnet-beta.solana.com",
+            "https://solana-rpc.publicnode.com"
+        ],
+        "explorer": "https://solscan.io",
+        "history": ""
+    },
+    {
+        "chain_id": 8332,
+        "name": "Bitcoin",
+        "symbol": "BTC",
+        "decimals": 8,
+        "family": "btc",
+        "rpc": [
+            "https://mempool.space/api",
+            "https://blockstream.info/api"
+        ],
+        "explorer": "https://mempool.space",
+        "history": ""
     }
 ]

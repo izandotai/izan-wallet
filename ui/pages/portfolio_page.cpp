@@ -452,15 +452,20 @@ void PortfolioPage::draw_add_token(const i18n::Catalog& tr)
     }
     kit_dialog_header_icon("💰", tr("addtoken.title"), tr("addtoken.sub"));
 
-    if (m_add_chain >= int(m_chains.size()))
+    // ERC-20 is an EVM concept; other families never appear here.
+    if (m_add_chain >= int(m_chains.size())
+        || !m_chains[std::size_t(m_add_chain)].is_evm())
         m_add_chain = 0;
     const chains::ChainSpec& sel = m_chains[std::size_t(m_add_chain)];
     kit_dialog_field_width();
     if (kit_select_begin("##add-chain", sel.name.c_str())) {
-        for (int i = 0; i < int(m_chains.size()); ++i)
+        for (int i = 0; i < int(m_chains.size()); ++i) {
+            if (!m_chains[std::size_t(i)].is_evm())
+                continue;
             if (kit_select_item(
                     m_chains[std::size_t(i)].name.c_str(), i == m_add_chain))
                 m_add_chain = i;
+        }
         kit_select_end();
     }
     kit_dialog_field_width();

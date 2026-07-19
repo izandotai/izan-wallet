@@ -27,6 +27,10 @@ std::vector<Holding> PortfolioReader::snapshot(std::string_view address)
 
     std::vector<Holding> rows;
     for (const chains::ChainSpec& chain : m_chains.all()) {
+        // This reader speaks EVM JSON-RPC only; other families get
+        // their own readers and must never be probed with eth_calls.
+        if (!chain.is_evm())
+            continue;
         auto& client = m_clients[chain.chain_id];
         if (!client)
             client = std::make_unique<chains::RpcClient>(chain);

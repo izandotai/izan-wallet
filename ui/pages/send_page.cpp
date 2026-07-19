@@ -113,6 +113,8 @@ SendPage::SendPage(const std::filesystem::path& data_dir,
     }
     for (int i = 0; i < int(m_registry.all().size()); ++i) {
         const chains::ChainSpec& chain = m_registry.all()[std::size_t(i)];
+        if (!chain.is_evm())
+            continue; // non-EVM families have no send/swap engine yet
         m_assets.push_back({ i, chain.symbol, "", chain.decimals });
         for (const assets::TokenSpec* token : tokens.tokens_for(chain.chain_id))
             m_assets.push_back(

@@ -30,6 +30,9 @@ ChainRegistry ChainRegistry::from_json(std::string_view json)
         for (const std::string& url : c.rpc)
             if (!url.starts_with("https://") && !url.starts_with("http://"))
                 throw std::runtime_error("chains config: bad rpc url " + url);
+        if (c.family != "evm" && c.family != "sol" && c.family != "btc")
+            throw std::runtime_error("chains config: unknown family \""
+                + c.family + "\" on chain " + std::to_string(c.chain_id));
     }
     return reg;
 }

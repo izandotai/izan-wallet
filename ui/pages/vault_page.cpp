@@ -318,7 +318,17 @@ void VaultPage::fetch_balances(int only_index)
             ss << f.rdbuf();
             const chains::ChainRegistry registry
                 = chains::ChainRegistry::from_json(ss.str());
-            const chains::ChainSpec& spec = registry.all().front();
+            // the account line prices in the first EVM chain; other
+            // families get their own balance engines
+            const chains::ChainSpec* evm0 = nullptr;
+            for (const chains::ChainSpec& c : registry.all())
+                if (c.is_evm()) {
+                    evm0 = &c;
+                    break;
+                }
+            if (!evm0)
+                throw std::runtime_error("no evm chain configured");
+            const chains::ChainSpec& spec = *evm0;
             chains::RpcClient rpc(spec);
             for (const std::string& addr : addrs) {
                 std::string line;
