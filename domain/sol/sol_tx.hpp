@@ -42,4 +42,31 @@ SolTransfer parse_transfer_message(std::span<const uint8_t> message);
 std::vector<uint8_t> assemble_tx(
     std::span<const uint8_t, 64> sig, std::span<const uint8_t> message);
 
+// ---- SPL transfers: one fixed two-instruction shape ----
+//
+// [create-ATA-idempotent, transferChecked]: the recipient's token
+// account is opened if missing and the transfer is decimal-checked by
+// the token program itself. One shape means one whitelist entry; the
+// parser re-derives both ATAs from (wallet, mint) and refuses a table
+// that disagrees — the accounts cannot be quietly rerouted.
+
+struct SplTransfer {
+    std::string owner;   // the signer and fee payer
+    std::string dest;    // the recipient WALLET (not the token account)
+    std::string mint;
+    uint64_t amount = 0; // base units
+    uint8_t decimals = 0;
+    std::array<uint8_t, 32> blockhash {};
+};
+
+// Throws on owner == dest (the deduplicated table would change shape;
+// send to another wallet instead), or any unreadable address.
+std::vector<uint8_t> encode_spl_transfer(std::string_view owner,
+    std::string_view dest, std::string_view mint, uint64_t amount,
+    uint8_t decimals, std::span<const uint8_t, 32> blockhash);
+
+// The exact inverse, and the whitelist: EXACTLY the shape above or a
+// throw — including the ATA re-derivation duel.
+SplTransfer parse_spl_transfer(std::span<const uint8_t> message);
+
 }

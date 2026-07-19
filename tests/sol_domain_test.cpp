@@ -378,3 +378,43 @@ TEST_CASE("the ATA falls off the curve exactly where the duel says")
     CHECK(izan::crypto::sol_on_curve(pk));
     CHECK_THROWS(izan::crypto::sol_ata("junk", "junk"));
 }
+
+TEST_CASE("the SPL transfer wears one shape and the table cannot be rerouted")
+{
+    const char* alice = "HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk";
+    const char* bob = "Hh8QwFUA6MtVu1qAoq12ucvFHNwCcVTV7hpWjeY1Hztb";
+    const char* usdc = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+    std::array<uint8_t, 32> hash {};
+    hash.fill(0x33);
+    const auto msg
+        = izan::sol::encode_spl_transfer(alice, bob, usdc, 2500000, 6, hash);
+    const auto back = izan::sol::parse_spl_transfer(msg);
+    CHECK(back.owner == alice);
+    CHECK(back.dest == bob);
+    CHECK(back.mint == usdc);
+    CHECK(back.amount == 2500000);
+    CHECK(back.decimals == 6);
+    CHECK(back.blockhash == hash);
+
+    // Self-transfers are refused up front, not encoded misshapen.
+    CHECK_THROWS(
+        izan::sol::encode_spl_transfer(alice, alice, usdc, 1, 6, hash));
+    CHECK_THROWS(izan::sol::encode_spl_transfer(alice, bob, usdc, 0, 6, hash));
+
+    // The whitelist: reroute any account and the parser walks away.
+    auto tamper = [&](std::size_t at, uint8_t v) {
+        auto bad = msg;
+        bad[at] ^= v;
+        return bad;
+    };
+    // keys start at offset 4; flipping a byte inside src ATA (idx 1),
+    // dst ATA (idx 2) or the token program (idx 6) must all refuse.
+    CHECK_THROWS(izan::sol::parse_spl_transfer(tamper(4 + 32 + 5, 0x01)));
+    CHECK_THROWS(izan::sol::parse_spl_transfer(tamper(4 + 64 + 5, 0x01)));
+    CHECK_THROWS(izan::sol::parse_spl_transfer(tamper(4 + 192 + 5, 0x01)));
+    // The System transfer parser must not accept this shape either.
+    CHECK_THROWS(izan::sol::parse_transfer_message(msg));
+    auto trailing = msg;
+    trailing.push_back(0);
+    CHECK_THROWS(izan::sol::parse_spl_transfer(trailing));
+}

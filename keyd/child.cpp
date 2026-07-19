@@ -341,7 +341,14 @@ int child_main(int argc, char** argv)
                     is_sol = preset_family(body.preset) == ChainFamily::Sol;
                     is_btc = preset_family(body.preset) == ChainFamily::Btc;
                     if (is_sol) {
-                        sol::parse_transfer_message(body.tx);
+                        // Two admissible shapes, nothing else: the
+                        // bare System transfer, or the fixed SPL
+                        // create-and-transferChecked pair.
+                        try {
+                            sol::parse_transfer_message(body.tx);
+                        } catch (const std::exception&) {
+                            sol::parse_spl_transfer(body.tx);
+                        }
                         sol_signature = sign_sol_payload(
                             *opened, body.tx, body.account, body.preset);
                     } else if (is_btc) {

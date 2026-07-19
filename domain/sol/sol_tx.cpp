@@ -172,3 +172,165 @@ std::vector<uint8_t> assemble_tx(
 }
 
 }
+
+namespace izan::sol {
+
+namespace {
+
+    const std::array<uint8_t, 32>& token_program()
+    {
+        static const std::array<uint8_t, 32> pk = [] {
+            std::array<uint8_t, 32> out {};
+            std::size_t sz = out.size();
+            b58tobin(
+                out.data(), &sz, "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+            return out;
+        }();
+        return pk;
+    }
+
+    const std::array<uint8_t, 32>& ata_program()
+    {
+        static const std::array<uint8_t, 32> pk = [] {
+            std::array<uint8_t, 32> out {};
+            std::size_t sz = out.size();
+            b58tobin(out.data(), &sz,
+                "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
+            return out;
+        }();
+        return pk;
+    }
+
+}
+
+std::vector<uint8_t> encode_spl_transfer(std::string_view owner,
+    std::string_view dest, std::string_view mint, uint64_t amount,
+    uint8_t decimals, std::span<const uint8_t, 32> blockhash)
+{
+    if (owner == dest)
+        throw std::invalid_argument(
+            "sol-tx: an SPL self-transfer changes the table shape; "
+            "send to another wallet");
+    if (amount == 0)
+        throw std::invalid_argument("sol-tx: zero amount");
+    const auto owner_pk = decode_address(owner);
+    const auto dest_pk = decode_address(dest);
+    const auto mint_pk = decode_address(mint);
+    const auto src_ata = decode_address(crypto::sol_ata(owner, mint));
+    const auto dst_ata = decode_address(crypto::sol_ata(dest, mint));
+
+    std::vector<uint8_t> out;
+    out.push_back(1); // one signature: the owner pays and signs
+    out.push_back(0);
+    out.push_back(5); // dest wallet, mint, system, token, ata programs
+    put_compact_u16(out, 8);
+    auto put_key = [&](const std::array<uint8_t, 32>& k) {
+        out.insert(out.end(), k.begin(), k.end());
+    };
+    put_key(owner_pk);            // 0 w signer
+    put_key(src_ata);             // 1 w
+    put_key(dst_ata);             // 2 w
+    put_key(dest_pk);             // 3 r
+    put_key(mint_pk);             // 4 r
+    out.insert(out.end(), 32, 0); // 5 r system program
+    put_key(token_program());     // 6 r
+    put_key(ata_program());       // 7 r
+    out.insert(out.end(), blockhash.begin(), blockhash.end());
+    put_compact_u16(out, 2);
+    // create-ATA, idempotent: opens the recipient's account when
+    // missing, is a cheap no-op when it exists.
+    out.push_back(7);
+    put_compact_u16(out, 6);
+    out.push_back(0);
+    out.push_back(2);
+    out.push_back(3);
+    out.push_back(4);
+    out.push_back(5);
+    out.push_back(6);
+    put_compact_u16(out, 1);
+    out.push_back(1); // CreateIdempotent
+    // transferChecked: amount and decimals both verified on-chain.
+    out.push_back(6);
+    put_compact_u16(out, 4);
+    out.push_back(1);
+    out.push_back(4);
+    out.push_back(2);
+    out.push_back(0);
+    put_compact_u16(out, 10);
+    out.push_back(12); // TransferChecked
+    for (int i = 0; i < 8; ++i)
+        out.push_back(uint8_t(amount >> (8 * i)));
+    out.push_back(decimals);
+    return out;
+}
+
+SplTransfer parse_spl_transfer(std::span<const uint8_t> message)
+{
+    std::size_t pos = 0;
+    auto take = [&](std::size_t n) -> const uint8_t* {
+        if (pos + n > message.size())
+            throw std::runtime_error("sol-tx: message truncated");
+        const uint8_t* p = message.data() + pos;
+        pos += n;
+        return p;
+    };
+    const uint8_t* header = take(3);
+    if (header[0] != 1 || header[1] != 0 || header[2] != 5)
+        throw std::runtime_error("sol-tx: not the spl-transfer shape");
+    if (take_compact_u16(message, pos) != 8)
+        throw std::runtime_error("sol-tx: wrong account count");
+    std::array<std::array<uint8_t, 32>, 8> keys;
+    for (auto& k : keys)
+        std::memcpy(k.data(), take(32), 32);
+    for (int i = 0; i < 32; ++i)
+        if (keys[5][std::size_t(i)] != 0)
+            throw std::runtime_error("sol-tx: not the system program slot");
+    if (keys[6] != token_program() || keys[7] != ata_program())
+        throw std::runtime_error("sol-tx: foreign program in the table");
+
+    SplTransfer out;
+    std::memcpy(out.blockhash.data(), take(32), 32);
+    if (take_compact_u16(message, pos) != 2)
+        throw std::runtime_error("sol-tx: expected exactly two instructions");
+    // Instruction one: the idempotent ATA create, byte for byte.
+    static constexpr uint8_t kCreateRefs[6] = { 0, 2, 3, 4, 5, 6 };
+    if (*take(1) != 7 || take_compact_u16(message, pos) != 6)
+        throw std::runtime_error("sol-tx: first instruction misshapen");
+    const uint8_t* refs1 = take(6);
+    if (std::memcmp(refs1, kCreateRefs, 6) != 0)
+        throw std::runtime_error("sol-tx: first instruction misshapen");
+    if (take_compact_u16(message, pos) != 1 || *take(1) != 1)
+        throw std::runtime_error("sol-tx: first instruction misshapen");
+    // Instruction two: transferChecked.
+    static constexpr uint8_t kXferRefs[4] = { 1, 4, 2, 0 };
+    if (*take(1) != 6 || take_compact_u16(message, pos) != 4)
+        throw std::runtime_error("sol-tx: second instruction misshapen");
+    const uint8_t* refs2 = take(4);
+    if (std::memcmp(refs2, kXferRefs, 4) != 0)
+        throw std::runtime_error("sol-tx: second instruction misshapen");
+    if (take_compact_u16(message, pos) != 10)
+        throw std::runtime_error("sol-tx: wrong data length");
+    const uint8_t* data = take(10);
+    if (data[0] != 12)
+        throw std::runtime_error("sol-tx: not a transferChecked");
+    for (int i = 0; i < 8; ++i)
+        out.amount |= uint64_t(data[1 + i]) << (8 * i);
+    if (out.amount == 0)
+        throw std::runtime_error("sol-tx: zero amount");
+    out.decimals = data[9];
+    if (pos != message.size())
+        throw std::runtime_error("sol-tx: trailing bytes");
+
+    out.owner = crypto::sol_address(keys[0]);
+    out.dest = crypto::sol_address(keys[3]);
+    out.mint = crypto::sol_address(keys[4]);
+    // The ATA duel: the table's token accounts must be exactly the
+    // canonical ones for (wallet, mint) — nowhere else money could be
+    // quietly pointed.
+    if (decode_address(crypto::sol_ata(out.owner, out.mint)) != keys[1]
+        || decode_address(crypto::sol_ata(out.dest, out.mint)) != keys[2])
+        throw std::runtime_error("sol-tx: token accounts off the canon");
+    return out;
+}
+
+}

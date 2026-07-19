@@ -730,3 +730,29 @@ TEST_CASE("keyd proposals: every bitcoin costume signs in its own dialect")
     CHECK(taproot[taproot.size() - 70] == 0x01);
     CHECK(taproot[taproot.size() - 69] == 0x40);
 }
+
+TEST_CASE("keyd proposals: the SPL shape is the second and last word")
+{
+    const std::string vaultPath = make_test_vault("correct horse");
+    const std::string auditPath = temp_file("proposals_spl.audit");
+    std::filesystem::remove(auditPath);
+    KeydClient keyd = KeydClient::spawn(self_exe(), vaultPath, auditPath);
+    REQUIRE(keyd.unlock(sb_from("correct horse")));
+    const uint8_t sol = uint8_t(izan::keyd::DerivePreset::SolPhantom);
+    const auto own = keyd.address(0, sol);
+    REQUIRE(own);
+    std::array<uint8_t, 32> hash {};
+    hash.fill(0x44);
+    const auto msg = izan::sol::encode_spl_transfer(*own,
+        "Hh8QwFUA6MtVu1qAoq12ucvFHNwCcVTV7hpWjeY1Hztb",
+        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", 123456, 6, hash);
+    const auto id = keyd.submit_ui(izan::keyd::make_envelope(
+        izan::keyd::DerivePreset::SolPhantom, 0, msg));
+    REQUIRE(id);
+    const auto sig = keyd.approve_sol(*id, sb_from("correct horse"));
+    REQUIRE(sig);
+    uint8_t pub[32];
+    std::size_t pubSize = sizeof pub;
+    REQUIRE(b58tobin(pub, &pubSize, own->c_str()));
+    CHECK(ed25519_sign_open(msg.data(), msg.size(), pub, sig->data()) == 0);
+}
