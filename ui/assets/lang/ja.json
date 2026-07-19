@@ -84,6 +84,7 @@
     "send.fee.fast": "速い",
     "send.fee.normal": "標準",
     "send.fee.slow": "遅い",
+    "send.rent": "受取人の口座開設レントを含む",
     "send.total_max": "合計（上限）",
     "send.confirm": "承認して送信",
     "send.back": "戻る",

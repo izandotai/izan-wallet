@@ -44,7 +44,8 @@ public:
 
     // The assets page hands over a clicked holding: select the
     // matching asset and bring this page forward.
-    void prefill(uint64_t chain_id, const std::string& symbol);
+    void prefill(uint64_t chain_id, const std::string& symbol,
+        const std::string& token = "", uint8_t decimals = 0);
 
     // Fires once when a delivery settles (confirmed or reverted —
     // either way gas moved); the host refreshes the read-only pages.
@@ -80,6 +81,9 @@ private:
         // the Bitcoin quote: the purse and the fee market
         std::vector<btc::Utxo> utxos;
         btc::FeeTiers tiers;
+        // the SPL quote: is the recipient door open, and what rent
+        bool ata_missing = false;
+        uint64_t token_rent = 0;
         // delivery results (hash written before step goes to 2)
         std::string tx_hash;
         uint64_t block = 0;
@@ -147,6 +151,14 @@ private:
     uint64_t m_sol_to_balance = 0;
     uint64_t m_sol_rent = 0;
     std::vector<uint8_t> m_sol_msg;
+    // The SPL leg riding the sol lane: a token amount, the mint, and
+    // the possible cost of opening the recipient door.
+    bool m_spl_send = false;
+    std::string m_spl_mint;
+    uint8_t m_spl_decimals = 0;
+    bool m_spl_ata_missing = false;
+    uint64_t m_spl_rent = 0;
+    uint64_t m_spl_amount = 0;
     // The Bitcoin leg: the purse quoted, a tier chosen, coins picked.
     bool m_btc_send = false;
     uint64_t m_btc_amount = 0; // satoshi

@@ -38,7 +38,9 @@ public:
 
     // Touching an asset row means "send this"; the host wires the
     // handler to the send page.
-    void on_send(std::function<void(uint64_t, const std::string&)> fn)
+    void on_send(std::function<void(
+            uint64_t, const std::string&, const std::string&, uint8_t)>
+            fn)
     {
         m_on_send = std::move(fn);
     }
@@ -63,6 +65,7 @@ private:
         std::string chain;
         std::string symbol;
         std::string token;   // contract address, empty = native coin
+        uint8_t decimals = 18;
         std::string amount;  // display-trimmed; empty when !ok
         double approx = 0.0; // full-precision read, for the fiat line
         std::string fiat;    // "$123.45"; empty when unpriced or testnet
@@ -125,7 +128,9 @@ private:
     std::unordered_map<std::string, double> m_prices;
     double m_priced_at = -1.0e9;
     std::vector<Row> m_rows;
-    std::function<void(uint64_t, const std::string&)> m_on_send;
+    std::function<void(
+        uint64_t, const std::string&, const std::string&, uint8_t)>
+        m_on_send;
     std::function<void(uint64_t, const std::string&)> m_on_swap;
     std::shared_ptr<Job> m_job;
     std::shared_ptr<ProbeJob> m_probe;

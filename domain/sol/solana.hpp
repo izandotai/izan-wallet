@@ -64,9 +64,13 @@ enum class SigStatus : uint8_t {
 SigStatus parse_signature_status(std::string_view result_json);
 SigStatus signature_status(chains::RpcClient& rpc, std::string_view signature);
 
-// getMinimumBalanceForRentExemption(0): the lamport floor below which
-// a bare account cannot exist — the send form's guard rail.
-uint64_t rent_exempt_minimum(chains::RpcClient& rpc);
+// getMinimumBalanceForRentExemption: the lamport floor below which an
+// account of that byte size cannot exist. 0 = a bare wallet (the
+// send guard), 165 = an SPL token account (the ATA-opening rent).
+uint64_t rent_exempt_minimum(chains::RpcClient& rpc, uint64_t size = 0);
+
+// getAccountInfo, existence only — a null value is an unopened door.
+bool account_exists(chains::RpcClient& rpc, std::string_view address);
 
 // ---- SPL tokens: the holdings under the token program ----
 

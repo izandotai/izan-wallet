@@ -84,6 +84,7 @@
     "send.fee.fast": "Fast",
     "send.fee.normal": "Normal",
     "send.fee.slow": "Slow",
+    "send.rent": "Includes recipient account rent",
     "send.total_max": "Total (max)",
     "send.confirm": "Confirm & send",
     "send.back": "Back",

@@ -84,6 +84,7 @@
     "send.fee.fast": "快",
     "send.fee.normal": "标准",
     "send.fee.slow": "慢",
+    "send.rent": "含收款人开户租金",
     "send.total_max": "合计（上限）",
     "send.confirm": "确认发送",
     "send.back": "返回",

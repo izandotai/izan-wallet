@@ -132,6 +132,7 @@ void PortfolioPage::refresh(const std::array<std::string, 3>& addrs)
             auto add_row = [&](Row row, const units::U256& amount,
                                uint8_t decimals) {
                 row.ok = true;
+                row.decimals = decimals;
                 const std::string full = units::format_units(amount, decimals);
                 std::from_chars(
                     full.data(), full.data() + full.size(), row.approx);
@@ -389,17 +390,21 @@ void PortfolioPage::draw(const i18n::Catalog& tr)
             const AssetRowEvent ev = kit_asset_row(id.c_str(),
                 row.symbol.c_str(), row.chain.c_str(), row.amount.c_str(),
                 row.ok, tr("portfolio.unreadable"), row.fiat.c_str(), true);
-            if (ev.clicked && row.ok && row_evm && m_on_send)
-                m_on_send(row.chain_id, row.symbol);
-            if (ev.hovered && row.ok && row_evm)
+            const bool row_spl
+                = rspec && rspec->family == "sol" && !row.token.empty();
+            if (ev.clicked && row.ok && (row_evm || row_spl) && m_on_send)
+                m_on_send(row.chain_id, row.symbol,
+                    row_spl ? row.token : std::string(), row.decimals);
+            if (ev.hovered && row.ok && (row_evm || row_spl))
                 kit_tooltip(tr("send.title"));
             if (ev.menu)
                 ImGui::OpenPopup("##asset-menu");
             if (kit_menu_begin("##asset-menu")) {
-                if (row_evm
+                if ((row_evm || row_spl)
                     && kit_menu_item(tr("send.title"), nullptr, false, row.ok)
                     && m_on_send)
-                    m_on_send(row.chain_id, row.symbol);
+                    m_on_send(row.chain_id, row.symbol,
+                        row_spl ? row.token : std::string(), row.decimals);
                 if (row_evm
                     && kit_menu_item(tr("swap.title"), nullptr, false, row.ok)
                     && m_on_swap)

@@ -84,6 +84,7 @@
     "send.fee.fast": "Veloce",
     "send.fee.normal": "Normale",
     "send.fee.slow": "Lento",
+    "send.rent": "Include la rendita del conto del destinatario",
     "send.total_max": "Totale (max)",
     "send.confirm": "Conferma",
     "send.back": "Indietro",

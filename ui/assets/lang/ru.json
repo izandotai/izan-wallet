@@ -84,6 +84,7 @@
     "send.fee.fast": "Быстро",
     "send.fee.normal": "Обычно",
     "send.fee.slow": "Медленно",
+    "send.rent": "Включая ренту за счёт получателя",
     "send.total_max": "Итого (макс.)",
     "send.confirm": "Подтвердить",
     "send.back": "Назад",

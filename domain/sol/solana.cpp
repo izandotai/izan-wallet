@@ -170,10 +170,10 @@ SigStatus signature_status(chains::RpcClient& rpc, std::string_view signature)
         "getSignatureStatuses", "[[\"" + std::string(signature) + "\"]]"));
 }
 
-uint64_t rent_exempt_minimum(chains::RpcClient& rpc)
+uint64_t rent_exempt_minimum(chains::RpcClient& rpc, uint64_t size)
 {
-    const std::string answer
-        = rpc.call("getMinimumBalanceForRentExemption", "[0]");
+    const std::string answer = rpc.call(
+        "getMinimumBalanceForRentExemption", "[" + std::to_string(size) + "]");
     glz::json_t doc;
     if (glz::read_json(doc, answer) || !doc.is_number() || doc.get_number() < 0)
         throw std::runtime_error("sol: rent minimum unreadable");
@@ -265,6 +265,25 @@ std::string known_mint_symbol(std::string_view mint)
     if (mint == "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263")
         return "Bonk";
     return {};
+}
+
+}
+
+namespace izan::sol {
+
+bool account_exists(chains::RpcClient& rpc, std::string_view address)
+{
+    if (!valid_address(address))
+        throw std::invalid_argument(
+            "not a solana address: " + std::string(address));
+    const std::string answer = rpc.call("getAccountInfo",
+        "[\"" + std::string(address) + "\",{\"encoding\":\"base64\"}]");
+    glz::json_t doc;
+    if (glz::read_json(doc, answer) || !doc.is_object())
+        throw std::runtime_error("sol: getAccountInfo not an object");
+    const auto& obj = doc.get_object();
+    const auto value = obj.find("value");
+    return value != obj.end() && !value->second.is_null();
 }
 
 }

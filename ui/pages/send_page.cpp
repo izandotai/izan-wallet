@@ -14,6 +14,7 @@
 
 #include "core/codec/abi.hpp"
 #include "core/crypto/eth.hpp"
+#include "core/crypto/sol.hpp"
 #include "core/units/decimal.hpp"
 #include "domain/btc/btc_tx.hpp"
 #include "domain/chains/rpc_client.hpp"
@@ -145,16 +146,27 @@ const chains::ChainSpec& SendPage::selected_chain() const
     return m_registry.all()[std::size_t(selected_asset().chain)];
 }
 
-void SendPage::prefill(uint64_t chain_id, const std::string& symbol)
+void SendPage::prefill(uint64_t chain_id, const std::string& symbol,
+    const std::string& token, uint8_t decimals)
 {
     for (int i = 0; i < int(m_assets.size()); ++i) {
         const Asset& a = m_assets[std::size_t(i)];
-        if (a.symbol == symbol
+        if (a.symbol == symbol && a.token == token
             && m_registry.all()[std::size_t(a.chain)].chain_id == chain_id) {
             m_asset_index = i;
-            break;
+            m_focus_self = true;
+            return;
         }
     }
+    // A holding the shipped menu never knew — an SPL mint from the
+    // assets page — becomes a session asset on first use.
+    if (!token.empty())
+        for (int i = 0; i < int(m_registry.all().size()); ++i)
+            if (m_registry.all()[std::size_t(i)].chain_id == chain_id) {
+                m_assets.push_back({ i, symbol, token, decimals });
+                m_asset_index = int(m_assets.size()) - 1;
+                break;
+            }
     m_focus_self = true;
 }
 
@@ -165,6 +177,10 @@ void SendPage::reset_to_form()
     m_sol_send = false;
     m_sol_lamports = 0;
     m_sol_msg.clear();
+    m_spl_send = false;
+    m_spl_mint.clear();
+    m_spl_amount = 0;
+    m_spl_ata_missing = false;
     m_btc_send = false;
     m_btc_amount = 0;
     m_btc_sel = {};
@@ -206,6 +222,8 @@ void SendPage::poll_job()
                 m_btc_tiers = m_job->tiers;
                 btc_reselect();
             }
+            m_spl_ata_missing = m_job->ata_missing;
+            m_spl_rent = m_job->token_rent;
             m_stage = Stage::Review;
             m_focus_pass = true;
             m_job.reset();
@@ -414,6 +432,9 @@ void SendPage::begin_review()
     m_sol_send = selected_chain().family == "sol";
     m_btc_send = selected_chain().family == "btc";
     if (m_sol_send) {
+        m_spl_send = !asset.token.empty();
+        m_spl_mint = asset.token;
+        m_spl_decimals = asset.decimals;
         begin_sol_review();
         return;
     }
@@ -520,20 +541,40 @@ void SendPage::begin_sol_review()
         return;
     }
     m_from = *from;
+    if (m_spl_send) {
+        m_spl_amount = m_sol_lamports;
+        m_sol_lamports = 0;
+        // The deduplicated table cannot wear a self-transfer; send to
+        // another of your own wallets instead.
+        if (m_from == m_to_checked) {
+            m_status = "send.err.address";
+            m_status_is_key = true;
+            return;
+        }
+    }
     auto job = std::make_shared<Job>();
     m_job = job;
     m_stage = Stage::Quoting;
     kit_dialog_open("##send-confirm");
-    std::thread([job, spec = selected_chain(), from = m_from,
-                    to = m_to_checked]() mutable {
+    std::thread([job, spec = selected_chain(), from = m_from, to = m_to_checked,
+                    spl = m_spl_send, mint = m_spl_mint]() mutable {
         try {
             chains::RpcClient rpc(std::move(spec));
             job->blockhash = sol::latest_blockhash(rpc);
             const std::string bal = sol::native_balance(rpc, from).to_dec();
             std::from_chars(bal.data(), bal.data() + bal.size(), job->balance);
-            const std::string tb = sol::native_balance(rpc, to).to_dec();
-            std::from_chars(tb.data(), tb.data() + tb.size(), job->to_balance);
-            job->rent = sol::rent_exempt_minimum(rpc);
+            if (spl) {
+                // The lamports only pay fee and, if the recipient's
+                // door is closed, the rent to open it.
+                job->token_rent = sol::rent_exempt_minimum(rpc, 165);
+                job->ata_missing
+                    = !sol::account_exists(rpc, crypto::sol_ata(to, mint));
+            } else {
+                const std::string tb = sol::native_balance(rpc, to).to_dec();
+                std::from_chars(
+                    tb.data(), tb.data() + tb.size(), job->to_balance);
+                job->rent = sol::rent_exempt_minimum(rpc);
+            }
             job->phase.store(1);
         } catch (const std::exception& e) {
             job->error = e.what();
@@ -552,32 +593,49 @@ void SendPage::confirm_sol_send()
     // before any signature exists. Verbatim messages — node-grade
     // plumbing errors, not yet in the phrasebook.
     constexpr uint64_t kFeeLamports = 5000;
-    if (m_sol_balance < m_sol_lamports + kFeeLamports) {
-        m_status = "balance cannot cover amount plus the 0.000005 SOL fee";
-        m_status_is_key = false;
-        return;
-    }
-    // A self-transfer's money comes home; only the fee leaves, so
-    // the remainder rules judge balance minus fee alone.
-    const bool self = m_from == m_to_checked;
-    const uint64_t left = self ? m_sol_balance - kFeeLamports
-                               : m_sol_balance - m_sol_lamports - kFeeLamports;
-    if (left != 0 && left < m_sol_rent) {
-        m_status = "remainder would fall below the rent floor; "
-                   "send less, or everything";
-        m_status_is_key = false;
-        return;
-    }
-    if (!self && m_sol_to_balance == 0 && m_sol_lamports < m_sol_rent) {
-        m_status = "recipient is a fresh account; the amount must cover "
-                   "its rent floor";
-        m_status_is_key = false;
-        return;
+    if (m_spl_send) {
+        // Token units travel on their own ledger; the lamports only
+        // pay the fee and, when the door is closed, the rent.
+        const uint64_t need
+            = kFeeLamports + (m_spl_ata_missing ? m_spl_rent : 0);
+        if (m_sol_balance < need) {
+            m_status = "SOL balance cannot cover the fee"
+                       " and the recipient's account rent";
+            m_status_is_key = false;
+            return;
+        }
+    } else {
+        if (m_sol_balance < m_sol_lamports + kFeeLamports) {
+            m_status = "balance cannot cover amount plus the 0.000005 SOL fee";
+            m_status_is_key = false;
+            return;
+        }
+        // A self-transfer's money comes home; only the fee leaves, so
+        // the remainder rules judge balance minus fee alone.
+        const bool self = m_from == m_to_checked;
+        const uint64_t left = self
+            ? m_sol_balance - kFeeLamports
+            : m_sol_balance - m_sol_lamports - kFeeLamports;
+        if (left != 0 && left < m_sol_rent) {
+            m_status = "remainder would fall below the rent floor; "
+                       "send less, or everything";
+            m_status_is_key = false;
+            return;
+        }
+        if (!self && m_sol_to_balance == 0 && m_sol_lamports < m_sol_rent) {
+            m_status = "recipient is a fresh account; the amount must "
+                       "cover its rent floor";
+            m_status_is_key = false;
+            return;
+        }
     }
     if (m_proposal == 0) {
         try {
-            m_sol_msg = sol::encode_transfer_message(
-                m_from, m_to_checked, m_sol_lamports, m_sol_blockhash);
+            m_sol_msg = m_spl_send
+                ? sol::encode_spl_transfer(m_from, m_to_checked, m_spl_mint,
+                      m_spl_amount, m_spl_decimals, m_sol_blockhash)
+                : sol::encode_transfer_message(
+                      m_from, m_to_checked, m_sol_lamports, m_sol_blockhash);
         } catch (const std::exception& e) {
             m_status = e.what();
             m_status_is_key = false;
@@ -1023,18 +1081,26 @@ void SendPage::draw_confirm_dialog(const i18n::Catalog& tr)
                     m_btc_sel_err.c_str(), ImGui::GetCursorPosX(), content);
             }
         } else if (m_sol_send) {
-            // Solana's fee is a flat per-signature price, exact, and
-            // both figures share the coin — the sum is honest.
+            // Solana's fee is a flat per-signature price, exact; for
+            // whole-coin sends the sum is honest. A token send keeps
+            // its units apart and declares any door-opening rent.
             constexpr uint64_t kFeeLamports = 5000;
+            const uint64_t fee = kFeeLamports
+                + (m_spl_send && m_spl_ata_missing ? m_spl_rent : 0);
             row(tr("send.fee_max"),
                 units::format_units_display(
-                    units::U256::from_u64(kFeeLamports), chain.decimals)
+                    units::U256::from_u64(fee), chain.decimals)
                     + " " + chain.symbol);
-            row(tr("send.total_max"),
-                units::format_units_display(
-                    units::U256::from_u64(m_sol_lamports + kFeeLamports),
-                    chain.decimals)
-                    + " " + chain.symbol);
+            if (m_spl_send) {
+                if (m_spl_ata_missing)
+                    centered_caption(tr("send.rent"));
+            } else {
+                row(tr("send.total_max"),
+                    units::format_units_display(
+                        units::U256::from_u64(m_sol_lamports + kFeeLamports),
+                        chain.decimals)
+                        + " " + chain.symbol);
+            }
         } else {
             const units::U256 fee_max
                 = m_tx.max_fee_per_gas.checked_mul_u64(m_tx.gas_limit);
