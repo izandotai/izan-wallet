@@ -5,6 +5,7 @@
 
 #include <doctest/doctest.h>
 
+#include <algorithm>
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
@@ -104,4 +105,35 @@ TEST_CASE("live quote: the aggregator answers for mainnet ETH to USDC")
     CHECK(!q.data.empty());
     CHECK(!q.to_amount_min.is_zero());
     MESSAGE("tool " << q.tool << " toAmountMin " << q.to_amount_min.to_dec());
+}
+
+TEST_CASE("a token catalog reads as a menu — malformed rows drop out")
+{
+    const char* json = R"({"tokens":{"137":[
+      {"address":"0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+       "symbol":"USDC.e","name":"Bridged USDC","decimals":6},
+      {"address":"0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
+       "symbol":"WMATIC","name":"Wrapped MATIC","decimals":18},
+      {"symbol":"NOADDR","name":"dropped","decimals":18},
+      {"address":"0xBAD","symbol":"BADDEC","name":"dropped","decimals":-1}
+    ]}})";
+    const auto list = izan::swap::parse_token_list(json, 137);
+    REQUIRE(list.size() == 2);
+    CHECK(list[0].symbol == "USDC.e");
+    CHECK(list[0].decimals == 6);
+    CHECK(list[1].symbol == "WMATIC");
+    CHECK_THROWS(izan::swap::parse_token_list(json, 1)); // absent chain
+    CHECK_THROWS(izan::swap::parse_token_list("[]", 137));
+}
+
+// IZAN_LIVE_TESTS=1: one real catalog pull — Polygon's list is big
+// and USDC must be on the menu.
+TEST_CASE("the live catalog knows USDC"
+    * doctest::skip(std::getenv("IZAN_LIVE_TESTS") == nullptr))
+{
+    const auto list = izan::swap::fetch_token_list(137);
+    CHECK(list.size() > 100);
+    const bool has_usdc = std::any_of(list.begin(), list.end(),
+        [](const izan::swap::TokenListing& t) { return t.symbol == "USDC"; });
+    CHECK(has_usdc);
 }

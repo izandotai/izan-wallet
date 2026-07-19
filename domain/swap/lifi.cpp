@@ -148,3 +148,59 @@ SwapQuote fetch_quote(uint64_t chain_id, std::string_view from_token,
 }
 
 }
+
+namespace izan::swap {
+
+std::vector<TokenListing> parse_token_list(
+    std::string_view json, uint64_t chain_id)
+{
+    glz::json_t doc;
+    if (glz::read_json(doc, json) || !doc.is_object())
+        throw std::runtime_error("lifi: token list not an object");
+    const auto& root = doc.get_object();
+    const auto tokens = root.find("tokens");
+    if (tokens == root.end() || !tokens->second.is_object())
+        throw std::runtime_error("lifi: token list missing tokens");
+    const auto& by_chain = tokens->second.get_object();
+    const auto entry = by_chain.find(std::to_string(chain_id));
+    if (entry == by_chain.end() || !entry->second.is_array())
+        throw std::runtime_error("lifi: token list missing this chain");
+    std::vector<TokenListing> out;
+    for (const glz::json_t& t : entry->second.get_array()) {
+        if (!t.is_object())
+            continue;
+        const auto& obj = t.get_object();
+        auto text = [&](const char* key) -> std::string {
+            const auto it = obj.find(key);
+            return it != obj.end() && it->second.is_string()
+                ? it->second.get_string()
+                : std::string();
+        };
+        TokenListing row;
+        row.address = text("address");
+        row.symbol = text("symbol");
+        row.name = text("name");
+        const auto dec = obj.find("decimals");
+        if (row.address.empty() || row.symbol.empty() || dec == obj.end()
+            || !dec->second.is_number() || dec->second.get_number() < 0
+            || dec->second.get_number() > 255)
+            continue; // a menu, not a contract — skip the malformed
+        row.decimals = uint8_t(dec->second.get_number());
+        out.push_back(std::move(row));
+    }
+    return out;
+}
+
+std::vector<TokenListing> fetch_token_list(uint64_t chain_id)
+{
+    net::HttpsClient client("li.quest", "443");
+    const net::HttpResponse res
+        = client.get("/v1/tokens?chains=" + std::to_string(chain_id),
+            { { "Accept", "application/json" } });
+    if (res.status != 200)
+        throw std::runtime_error(
+            "lifi: token list answered " + std::to_string(res.status));
+    return parse_token_list(res.body, chain_id);
+}
+
+}
