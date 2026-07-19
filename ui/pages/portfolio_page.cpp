@@ -153,6 +153,26 @@ void PortfolioPage::refresh(const std::array<std::string, 3>& addrs)
                         chains::RpcClient rpc(spec);
                         add_row(row, sol::native_balance(rpc, address),
                             spec.decimals);
+                        // The SPL shelf, same breath: majors by name,
+                        // strangers by their mint; empty ATAs stay off
+                        // the screen.
+                        for (const sol::SplHolding& h :
+                            sol::token_accounts(rpc, address)) {
+                            if (h.amount == 0)
+                                continue;
+                            Row t;
+                            t.chain_id = spec.chain_id;
+                            t.chain = spec.name;
+                            const std::string sym
+                                = sol::known_mint_symbol(h.mint);
+                            t.symbol = sym.empty() ? h.mint.substr(0, 4) + "…"
+                                    + h.mint.substr(h.mint.size() - 4)
+                                                   : sym;
+                            t.token = h.mint;
+                            t.testnet = spec.testnet;
+                            add_row(std::move(t),
+                                units::U256::from_u64(h.amount), h.decimals);
+                        }
                     } else {
                         add_row(row, btc::native_balance(spec, address),
                             spec.decimals);

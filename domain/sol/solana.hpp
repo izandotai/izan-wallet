@@ -68,4 +68,25 @@ SigStatus signature_status(chains::RpcClient& rpc, std::string_view signature);
 // a bare account cannot exist — the send form's guard rail.
 uint64_t rent_exempt_minimum(chains::RpcClient& rpc);
 
+// ---- SPL tokens: the holdings under the token program ----
+
+struct SplHolding {
+    std::string account; // the token account (usually the ATA)
+    std::string mint;
+    uint64_t amount = 0; // base units
+    uint8_t decimals = 0;
+};
+
+// Parse a getTokenAccountsByOwner (jsonParsed) result. Zero-balance
+// accounts are kept — an empty ATA is still an account the owner may
+// want to see; callers filter.
+std::vector<SplHolding> parse_token_accounts(std::string_view result_json);
+std::vector<SplHolding> token_accounts(
+    chains::RpcClient& rpc, std::string_view owner);
+
+// The display name a well-known mint answers to; empty for strangers.
+// A tiny curated table, not a registry — pricing and symbols for the
+// long tail come later, and an unknown mint shows its own address.
+std::string known_mint_symbol(std::string_view mint);
+
 }

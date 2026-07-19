@@ -326,3 +326,33 @@ TEST_CASE("a self-transfer wears the two-key shape and reads back whole")
     CHECK_THROWS(izan::sol::parse_transfer_message(tamper(101, 2))); // idx
     CHECK_THROWS(izan::sol::parse_transfer_message(tamper(104, 1))); // refs
 }
+
+TEST_CASE("SPL holdings parse and the majors answer to their names")
+{
+    const char* json = R"({"context":{"slot":1},"value":[
+      {"pubkey":"AtaOne11111111111111111111111111111111111111",
+       "account":{"data":{"parsed":{"info":{
+         "mint":"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+         "tokenAmount":{"amount":"2500000","decimals":6,
+                        "uiAmountString":"2.5"}}}}}},
+      {"pubkey":"AtaTwo11111111111111111111111111111111111111",
+       "account":{"data":{"parsed":{"info":{
+         "mint":"StrangeMint111111111111111111111111111111111",
+         "tokenAmount":{"amount":"0","decimals":9,
+                        "uiAmountString":"0"}}}}}},
+      {"pubkey":"Broken","account":{"data":{"parsed":{"info":{
+         "mint":"NoAmount1111111111111111111111111111111111111"}}}}}
+    ]})";
+    const auto holdings = izan::sol::parse_token_accounts(json);
+    REQUIRE(holdings.size() == 2);
+    CHECK(holdings[0].mint == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+    CHECK(holdings[0].amount == 2500000);
+    CHECK(holdings[0].decimals == 6);
+    CHECK(holdings[1].amount == 0); // empty ATAs survive; callers filter
+    CHECK_THROWS(izan::sol::parse_token_accounts("[]"));
+
+    CHECK(izan::sol::known_mint_symbol(
+              "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+        == "USDC");
+    CHECK(izan::sol::known_mint_symbol("StrangeMint").empty());
+}
