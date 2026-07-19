@@ -182,17 +182,27 @@ void PortfolioPage::refresh(const std::string& address)
             // computed at all: every dollar shown is independently
             // checkable against its own row.
             job->prices = cache;
-            if (want_prices) {
+            std::vector<std::string> ids;
+            for (const Row& row : job->rows) {
+                const std::string id = assets::coingecko_id(row.symbol);
+                if (row.ok && !row.testnet && !id.empty()
+                    && std::find(ids.begin(), ids.end(), id) == ids.end())
+                    ids.push_back(id);
+            }
+            // The minute throttle yields when the cache cannot price
+            // this page at all — switching families brings symbols the
+            // last wallet never fetched, and a missing dollar column
+            // is worse than one extra polite request.
+            bool need_fetch = want_prices;
+            for (const std::string& id : ids)
+                if (!need_fetch && !cache.contains(id))
+                    need_fetch = true;
+            if (need_fetch) {
                 try {
-                    std::vector<std::string> ids;
-                    for (const Row& row : job->rows) {
-                        const std::string id = assets::coingecko_id(row.symbol);
-                        if (row.ok && !row.testnet && !id.empty()
-                            && std::find(ids.begin(), ids.end(), id)
-                                == ids.end())
-                            ids.push_back(id);
-                    }
-                    job->prices = assets::fetch_usd_prices(ids);
+                    // Merge, don't replace: the cache keeps pricing
+                    // the wallets this page is not looking at.
+                    for (const auto& [id, usd] : assets::fetch_usd_prices(ids))
+                        job->prices[id] = usd;
                     job->priced = true;
                 } catch (const std::exception&) {
                     // Rate-limited or down: yesterday's price beats a
