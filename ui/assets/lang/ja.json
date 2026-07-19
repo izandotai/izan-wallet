@@ -60,6 +60,7 @@
     "swap.review": "スワップを確認",
     "swap.confirm": "スワップを実行",
     "swap.quoting": "最適ルートを検索中…",
+    "swap.requote": "自動再見積まで",
     "swap.approve_note": "先に正確な額の承認に署名します——2 件の取引、1 回の確認。",
     "swap.same": "同じチェーン上の異なる 2 つの資産を選んでください。",
     "swap.confirmed": "スワップしました。",

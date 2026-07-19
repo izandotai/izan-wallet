@@ -60,6 +60,7 @@
     "swap.review": "Review swap",
     "swap.confirm": "Confirm swap",
     "swap.quoting": "Finding the best route…",
+    "swap.requote": "Quote auto-refreshes in",
     "swap.approve_note": "An exact-amount approval signs first — two transactions, one confirmation.",
     "swap.same": "Pick two different assets on one chain.",
     "swap.confirmed": "Swapped.",

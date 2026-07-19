@@ -60,6 +60,7 @@ private:
     struct Job {
         std::atomic<int> phase { 0 }; // 0 running, 1 ok, 2 failed
         std::atomic<int> step { 0 };  // Delivering: 1 broadcast, 2 waiting
+        bool requote = false; // a Review-time refresh, not a first quote
         std::string error;
         // quote results
         swap::SwapQuote quote;
@@ -83,6 +84,7 @@ private:
     void draw_form(const i18n::Catalog& tr);
     void draw_confirm_dialog(const i18n::Catalog& tr);
     void begin_review();
+    void start_quote(bool requote); // the route/allowance/nonce/fees job
     void confirm_swap();
     void cancel_flow();
     void poll_job();
@@ -126,6 +128,8 @@ private:
     uint8_t m_preset = 0;
     std::string m_pay_label;     // "0.1 ETH", captured at review
     std::string m_receive_label; // "≥ 185.2 USDC", captured at review
+    units::U256 m_quote_amount;  // base units sold; requotes reuse it
+    double m_quoted_at = 0.0;    // frame clock of the live quote
     uint64_t m_proposal_approve = 0;
     uint64_t m_proposal_swap = 0;
 

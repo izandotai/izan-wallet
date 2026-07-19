@@ -60,6 +60,7 @@
     "swap.review": "审阅兑换",
     "swap.confirm": "确认兑换",
     "swap.quoting": "正在寻找最优路由…",
+    "swap.requote": "报价自动刷新：",
     "swap.approve_note": "将先签署精确额度的授权——两笔交易，一次确认。",
     "swap.same": "请选择同一条链上的两种不同资产。",
     "swap.confirmed": "兑换成功。",

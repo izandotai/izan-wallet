@@ -181,7 +181,9 @@ void SwapPage::poll_job()
     if (phase == 0)
         return;
     if (phase == 1) {
-        if (m_stage == Stage::Quoting) {
+        if (m_stage == Stage::Quoting
+            || (m_job->requote && m_stage == Stage::Review)) {
+            const bool first = m_stage == Stage::Quoting;
             m_quote = m_job->quote;
             m_need_approve = m_job->need_approve;
             // The approval, when needed: exact amount, first in line.
@@ -214,8 +216,11 @@ void SwapPage::poll_job()
                 + units::format_units_display(
                     m_quote.to_amount_min, buy().decimals)
                 + " " + buy().symbol;
-            m_stage = Stage::Review;
-            m_focus_pass = true;
+            m_quoted_at = ImGui::GetTime();
+            if (first) {
+                m_stage = Stage::Review;
+                m_focus_pass = true;
+            }
             m_job.reset();
             return;
         }
@@ -228,6 +233,10 @@ void SwapPage::poll_job()
     m_status_is_key = false;
     if (m_stage == Stage::Quoting) {
         m_stage = Stage::Form;
+    } else if (m_stage == Stage::Review) {
+        // A failed refresh keeps the old figures on screen and backs
+        // off a full interval — never a per-frame retry storm.
+        m_quoted_at = ImGui::GetTime();
     } else if (m_stage == Stage::Delivering && m_job->step.load() == 0) {
         // Failed before anything was signed: nothing happened
         // on-chain, the review screen takes another try.
@@ -385,17 +394,17 @@ void SwapPage::begin_review()
 {
     m_status.clear();
     const Asset& from_asset = sell();
-    units::U256 amount;
     try {
-        amount = units::parse_units(m_amount.data(), from_asset.decimals);
-        if (amount.is_zero())
+        m_quote_amount
+            = units::parse_units(m_amount.data(), from_asset.decimals);
+        if (m_quote_amount.is_zero())
             throw std::runtime_error("zero");
     } catch (const std::exception&) {
         m_status = "send.err.amount";
         m_status_is_key = true;
         return;
     }
-    m_pay_label = units::format_units(amount, from_asset.decimals) + " "
+    m_pay_label = units::format_units(m_quote_amount, from_asset.decimals) + " "
         + from_asset.symbol;
 
     m_account = m_vault.active_account();
@@ -408,16 +417,24 @@ void SwapPage::begin_review()
     }
     m_from = *from;
 
-    auto job = std::make_shared<Job>();
-    m_job = job;
     m_stage = Stage::Quoting;
     kit_dialog_open("##swap-confirm");
+    start_quote(false);
+}
+
+void SwapPage::start_quote(bool requote)
+{
+    const Asset& from_asset = sell();
+    auto job = std::make_shared<Job>();
+    job->requote = requote;
+    m_job = job;
     const std::string from_token
         = from_asset.token.empty() ? swap::kNativeToken : from_asset.token;
     const std::string to_token
         = buy().token.empty() ? swap::kNativeToken : buy().token;
     std::thread([job, spec = selected_chain(), from = m_from, from_token,
-                    to_token, amount, sell_token = from_asset.token]() {
+                    to_token, amount = m_quote_amount,
+                    sell_token = from_asset.token]() {
         try {
             job->quote = swap::fetch_quote(
                 spec.chain_id, from_token, to_token, amount, from, "izan");
@@ -620,6 +637,25 @@ void SwapPage::draw_confirm_dialog(const i18n::Catalog& tr)
             (unsigned long long)total_gas,
             units::format_units(m_tx_swap.max_fee_per_gas, 9).c_str());
         centered_caption(plumbing);
+
+        // A quote is perishable: every 15 seconds the figures refresh
+        // in place, until the pair is proposed — what enters the queue
+        // is frozen. The countdown keeps the staleness honest.
+        constexpr double kQuoteLife = 15.0;
+        const double age = ImGui::GetTime() - m_quoted_at;
+        const bool frozen = m_proposal_swap != 0 || m_proposal_approve != 0;
+        if (!frozen) {
+            if (m_job) {
+                centered_caption(tr("swap.quoting"));
+            } else {
+                char fresh[96];
+                std::snprintf(fresh, sizeof fresh, "%s %ds", tr("swap.requote"),
+                    int(std::max(0.0, kQuoteLife - age)) + 1);
+                centered_caption(fresh);
+                if (age > kQuoteLife)
+                    start_quote(true);
+            }
+        }
         kit_vspace(0.4f);
 
         if (m_focus_pass) {

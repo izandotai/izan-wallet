@@ -60,6 +60,7 @@
     "swap.review": "Vérifier l'échange",
     "swap.confirm": "Confirmer l'échange",
     "swap.quoting": "Recherche du meilleur itinéraire…",
+    "swap.requote": "Actualisation du devis dans",
     "swap.approve_note": "Une approbation du montant exact est signée d'abord — deux transactions, une confirmation.",
     "swap.same": "Choisissez deux actifs différents sur la même chaîne.",
     "swap.confirmed": "Échangé.",
