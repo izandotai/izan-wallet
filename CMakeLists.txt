@@ -82,7 +82,21 @@ FetchContent_Declare(izan_crypto
     GIT_TAG 83899cb
     EXCLUDE_FROM_ALL
 )
-FetchContent_MakeAvailable(doctest sodium glaze Boost izan_crypto)
+# The UI framework, its own repository as well: window shell, widget
+# kit and the i18n engine. Its izan-crypto and glaze pins must stay
+# in lockstep with ours (first declare wins). L5 shell is a heavy
+# fetch (GLFW/FreeType/ImGui) — IZAN_BUILD_UI=OFF keeps a trust-plane
+# build lean and still gets the headless i18n engine.
+option(IZAN_BUILD_UI "Build the wallet UI" ON)
+FetchContent_Declare(izan_ui
+    GIT_REPOSITORY https://github.com/izandotai/izan-ui.git
+    GIT_TAG 0871cce
+    EXCLUDE_FROM_ALL
+)
+if(NOT (IZAN_BUILD_UI AND WIN32))
+    set(IZAN_UI_SHELL OFF)
+endif()
+FetchContent_MakeAvailable(doctest sodium glaze Boost izan_crypto izan_ui)
 
 # The encrypted vault file: an izan product asset, staying home while
 # SecureBytes and the primitives live in izan-crypto.
@@ -162,14 +176,6 @@ target_include_directories(izan_domain PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(izan_domain PUBLIC izan_units izan_soltx izan_btctx izan_ethtx
     PRIVATE glaze::glaze izan_codec izan_crypto izan_platform)
 
-# UI string catalogs. Headless on purpose: pages read it, tests audit
-# it, neither needs a window.
-add_library(izan_i18n STATIC
-    ui/i18n/catalog.cpp
-)
-target_include_directories(izan_i18n PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(izan_i18n PRIVATE glaze::glaze)
-
 # The wallet UI's headless layer: directory store, import model, keyd
 # session, preset naming. Everything a page decides lives here where
 # tests can reach it; the page files only draw.
@@ -191,91 +197,7 @@ target_link_libraries(izan_watch PRIVATE izan_domain izan_units)
 
 # L5 shell. Heavy fetch (GLFW/FreeType/ImGui); switch it off to keep a
 # trust-plane-only build fast.
-option(IZAN_BUILD_UI "Build the wallet UI" ON)
 if(IZAN_BUILD_UI AND WIN32)
-    include(cmake/gui_deps.cmake)
-
-    add_library(izan_ui_shell STATIC
-        ui/shell/app.cpp
-        ui/shell/chrome_widgets.cpp
-        ui/shell/fonts.cpp
-        ui/shell/ime.cpp
-        ui/shell/theme.cpp
-        ui/shell/ui_layout.cpp
-        ui/shell/win_chrome.cpp
-        ui/shell/win_console.cpp
-        ui/shell/win_cursors.cpp
-    )
-    target_include_directories(izan_ui_shell PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(izan_ui_shell PUBLIC izan_imgui dwmapi imm32)
-
-    # Runtime assets (fonts; cursor files are optional and unshipped in
-    # the open repo) copied beside the target exe.
-    function(izan_ui_copy_assets target)
-        add_custom_command(TARGET ${target} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                ${CMAKE_CURRENT_SOURCE_DIR}/ui/assets
-                $<TARGET_FILE_DIR:${target}>/assets
-            COMMENT "Copying ui assets for ${target}")
-    endfunction()
-
-    # QR codes for receive flows: nayuki's reference implementation,
-    # pinned tarball, a single translation unit compiled into the kit.
-    FetchContent_Declare(qrcodegen
-        URL https://github.com/nayuki/QR-Code-generator/archive/refs/tags/v1.8.0.tar.gz
-        DOWNLOAD_EXTRACT_TIMESTAMP ON
-        SOURCE_SUBDIR cmake-subdir-does-not-exist
-        EXCLUDE_FROM_ALL
-    )
-    FetchContent_MakeAvailable(qrcodegen)
-
-    # The kit: izan's own widget library — every component drawn in the
-    # active design language. Its own library so the smoke harness can
-    # host a component gallery without dragging the wallet in.
-    add_library(izan_kit STATIC
-        ${qrcodegen_SOURCE_DIR}/cpp/qrcodegen.cpp
-        ui/widgets/address_field.cpp
-        ui/widgets/amount_field.cpp
-        ui/widgets/asset_row.cpp
-        ui/widgets/avatar.cpp
-        ui/widgets/button.cpp
-        ui/widgets/card.cpp
-        ui/widgets/choice_row.cpp
-        ui/widgets/copy_text.cpp
-        ui/widgets/design.cpp
-        ui/widgets/dialog.cpp
-        ui/widgets/empty_state.cpp
-        ui/widgets/hyperlink.cpp
-        ui/widgets/identity.cpp
-        ui/widgets/label.cpp
-        ui/widgets/list_row.cpp
-        ui/widgets/menu.cpp
-        ui/widgets/pill.cpp
-        ui/widgets/qr.cpp
-        ui/widgets/result_mark.cpp
-        ui/widgets/search_field.cpp
-        ui/widgets/select.cpp
-        ui/widgets/spinner.cpp
-        ui/widgets/step_dots.cpp
-        ui/widgets/table.cpp
-        ui/widgets/text_field.cpp
-        ui/widgets/toggle.cpp
-        ui/widgets/tooltip.cpp
-        ui/widgets/tx_row.cpp
-    )
-    target_include_directories(izan_kit PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-        PRIVATE ${qrcodegen_SOURCE_DIR}/cpp)
-    # shell32: kit_hyperlink hands URLs to the system browser.
-    target_link_libraries(izan_kit PUBLIC izan_imgui izan_secure shell32)
-
-    # WIN32 = windows subsystem: no console flashes up on double-click;
-    # launched from a terminal, try_attach_parent_console re-plumbs
-    # stdout/stderr back to it.
-    add_executable(izan_ui_smoke WIN32 ui/smoke_main.cpp)
-    target_link_libraries(
-        izan_ui_smoke PRIVATE izan_ui_shell izan_kit glaze::glaze)
-    izan_ui_copy_assets(izan_ui_smoke)
-
     # The wallet. One binary, two personalities (UI / --keyd-child).
     add_executable(izan WIN32
         apps/izan_main.cpp
@@ -294,12 +216,17 @@ if(IZAN_BUILD_UI AND WIN32)
     target_link_libraries(izan PRIVATE izan_ui_shell izan_kit izan_i18n
         izan_keyd izan_wallet_ui izan_crypto izan_secure izan_domain
         izan_units glaze::glaze)
+    # Two asset layers land beside the exe: the framework's fonts
+    # (izan-ui's copy hook) and the wallet's own language tables.
     izan_ui_copy_assets(izan)
     add_custom_command(TARGET izan POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/ui/assets
+            $<TARGET_FILE_DIR:izan>/assets
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/data
             $<TARGET_FILE_DIR:izan>/data
-        COMMENT "Copying chain/token config for izan")
+        COMMENT "Copying language tables and chain/token config for izan")
 endif()
 
 enable_testing()
