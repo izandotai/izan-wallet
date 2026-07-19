@@ -68,23 +68,6 @@ void HistoryPage::refresh(const std::string& address)
 {
     if (address.empty() || m_job)
         return;
-    m_base.clear();
-    m_keys.clear();
-    m_token_seen.clear();
-    m_page = 0;
-    m_more = false;
-    fetch_pages(address, 1);
-}
-
-void HistoryPage::load_more()
-{
-    if (m_followed.empty() || m_job)
-        return;
-    fetch_pages(m_followed, m_page + 1);
-}
-
-void HistoryPage::fetch_pages(const std::string& address, int page)
-{
     m_status.clear();
     std::vector<chains::ChainSpec> flying;
     for (const chains::ChainSpec& chain : m_registry.all())
@@ -94,26 +77,19 @@ void HistoryPage::fetch_pages(const std::string& address, int page)
         return;
     auto job = std::make_shared<Job>();
     job->address = address;
-    job->page = page;
     job->spawned = int(flying.size());
     job->pending.store(job->spawned);
-    job->known_keys = std::make_shared<const std::set<std::string>>(m_keys);
-    job->known_tokens
-        = std::make_shared<const std::set<std::string>>(m_token_seen);
     m_job = job;
     for (const chains::ChainSpec& chain : flying) {
-        std::thread([job, address, chain, page]() {
+        std::thread([job, address, chain]() {
             try {
-                assets::Ledger ledger
-                    = assets::fetch_ledger(chain, address, page);
+                assets::Ledger ledger = assets::fetch_ledger(chain, address);
                 std::vector<Row> local;
                 std::set<std::string> token_hashes;
                 // Token transfers land first so their hashes can
                 // silence the empty native shells of the same
-                // transactions; the spawn-time snapshot extends the
-                // silence across page boundaries. A row already on
-                // screen (page overlap after new activity) is dropped
-                // by its key, never shown twice.
+                // transactions; hashes never cross chains, so the
+                // set stays chain-local.
                 auto add = [&](const assets::TxRecord& rec, bool token) {
                     Row row;
                     row.hash = rec.hash;
@@ -121,15 +97,12 @@ void HistoryPage::fetch_pages(const std::string& address, int page)
                     row.incoming = rec.incoming;
                     row.failed = rec.failed;
                     row.time = rec.time;
-                    row.token = token;
                     row.note = chain.name + " · " + moment_of(rec.time);
                     row.when_hint = local_moment_of(rec.time);
                     row.amount = (rec.incoming ? "+" : "−")
                         + units::format_units_display(rec.value,
                             token ? rec.token_decimals : chain.decimals)
                         + " " + (token ? rec.token_symbol : chain.symbol);
-                    if (job->known_keys->contains(row.hash + "|" + row.amount))
-                        return;
                     if (!chain.explorer.empty())
                         row.link = chain.explorer + "/tx/" + row.hash;
                     local.push_back(std::move(row));
@@ -143,8 +116,7 @@ void HistoryPage::fetch_pages(const std::string& address, int page)
                     // call on the contract; the transfer row already
                     // tells the story.
                     if (rec.value.to_dec() == "0"
-                        && (token_hashes.contains(rec.hash)
-                            || job->known_tokens->contains(rec.hash)))
+                        && token_hashes.contains(rec.hash))
                         continue;
                     add(rec, false);
                 }
@@ -188,7 +160,6 @@ void HistoryPage::draw(const i18n::Catalog& tr)
                 std::lock_guard lock(m_job->mu);
                 snap = m_job->rows;
             }
-            snap.insert(snap.end(), m_base.begin(), m_base.end());
             std::sort(snap.begin(), snap.end(),
                 [](const Row& a, const Row& b) { return a.time > b.time; });
             m_rows = std::move(snap);
@@ -197,16 +168,6 @@ void HistoryPage::draw(const i18n::Catalog& tr)
             if (current) {
                 m_fetched_at = ImGui::GetTime();
                 std::lock_guard lock(m_job->mu);
-                // This page's rows join the ledger's books; an empty
-                // page means the past has run out and the door hides.
-                m_more = !m_job->rows.empty();
-                m_page = m_job->page;
-                for (const Row& row : m_job->rows) {
-                    m_keys.insert(row.hash + "|" + row.amount);
-                    if (row.token)
-                        m_token_seen.insert(row.hash);
-                }
-                m_base = m_rows;
                 // Partial silence stays silent, as before; only a
                 // ledger with nothing to say explains why.
                 if (m_rows.empty() && m_job->failed == m_job->spawned)
@@ -290,17 +251,27 @@ void HistoryPage::draw(const i18n::Catalog& tr)
             ImGui::PopID();
         }
         kit_group_end();
-        // The door to the deeper past — hidden once a page comes back
-        // empty; the ledger has said everything it knows.
-        if (!busy && m_more) {
-            kit_vspace(0.35f);
-            centered_x(kit_button_width(tr("history.more")));
-            if (kit_link_button(tr("history.more")))
-                load_more();
-        }
     } else if (!busy && m_status.empty()) {
         kit_vspace(1.5f);
         kit_empty_state("🧾", tr("history.empty"));
+    }
+
+    // The list shows what six free endpoints give; the whole book
+    // lives on the explorer, one click below the last row.
+    if (!m_followed.empty()) {
+        const chains::ChainSpec* home = nullptr;
+        for (const chains::ChainSpec& chain : m_registry.all())
+            if (!chain.explorer.empty() && !chain.testnet) {
+                home = &chain;
+                break;
+            }
+        if (home) {
+            kit_vspace(0.35f);
+            const char* label = tr("history.full");
+            centered_x(ImGui::CalcTextSize(label).x);
+            kit_hyperlink("##history-full", label,
+                (home->explorer + "/address/" + m_followed).c_str());
+        }
     }
 
     ImGui::End();
