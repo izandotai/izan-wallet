@@ -14,6 +14,7 @@
 #include "core/crypto/eth.hpp"
 #include "core/units/decimal.hpp"
 #include "domain/assets/prices.hpp"
+#include "domain/btc/esplora.hpp"
 #include "domain/config/config_trust.hpp"
 #include "domain/sol/solana.hpp"
 #include "ui/widgets/kit.hpp"
@@ -116,12 +117,15 @@ void PortfolioPage::refresh(const std::string& address)
     auto reader = m_reader;
     const bool want_prices = ImGui::GetTime() - m_priced_at > 60.0;
     const keyd::ChainFamily family = m_family;
-    std::vector<chains::ChainSpec> sol_chains;
+    const char* fam_key = family == keyd::ChainFamily::Sol ? "sol"
+        : family == keyd::ChainFamily::Btc                 ? "btc"
+                                                           : "evm";
+    std::vector<chains::ChainSpec> fam_chains;
     for (const chains::ChainSpec& c : m_chains)
-        if (c.family == "sol")
-            sol_chains.push_back(c);
+        if (c.family == fam_key)
+            fam_chains.push_back(c);
     std::thread([job, reader, address, want_prices, family,
-                    sol_chains = std::move(sol_chains), cache = m_prices] {
+                    fam_chains = std::move(fam_chains), cache = m_prices] {
         try {
             // A number lands as a row through one dresser, whatever
             // engine read it.
@@ -134,23 +138,28 @@ void PortfolioPage::refresh(const std::string& address)
                 row.amount = units::format_units_display(amount, decimals);
                 job->rows.push_back(std::move(row));
             };
-            if (family == keyd::ChainFamily::Sol) {
-                for (const chains::ChainSpec& spec : sol_chains) {
+            if (family != keyd::ChainFamily::Eth) {
+                for (const chains::ChainSpec& spec : fam_chains) {
                     Row row;
                     row.chain_id = spec.chain_id;
                     row.chain = spec.name;
                     row.symbol = spec.symbol;
                     row.testnet = spec.testnet;
                     try {
-                        chains::RpcClient rpc(spec);
-                        add_row(row, sol::native_balance(rpc, address),
-                            spec.decimals);
+                        if (family == keyd::ChainFamily::Sol) {
+                            chains::RpcClient rpc(spec);
+                            add_row(row, sol::native_balance(rpc, address),
+                                spec.decimals);
+                        } else {
+                            add_row(row, btc::native_balance(spec, address),
+                                spec.decimals);
+                        }
                     } catch (const std::exception& e) {
                         row.error = e.what();
                         job->rows.push_back(std::move(row));
                     }
                 }
-            } else if (family == keyd::ChainFamily::Eth) {
+            } else {
                 for (const auto& h : reader->snapshot(address)) {
                     Row row;
                     row.chain_id = h.chain_id;
@@ -166,8 +175,6 @@ void PortfolioPage::refresh(const std::string& address)
                     }
                 }
             }
-            // Btc: no balance engine yet — an honest empty page beats
-            // a wrong probe (B1c brings esplora).
             // Per-row fiat is garnish over the on-chain numbers: a
             // price feed failure leaves the dollar column empty and
             // says nothing. Testnet rows never get a figure — test

@@ -15,6 +15,7 @@
 #include "core/secure/vault.hpp"
 #include "core/units/decimal.hpp"
 #include "domain/assets/balances.hpp"
+#include "domain/btc/esplora.hpp"
 #include "domain/chains/rpc_client.hpp"
 #include "domain/sol/solana.hpp"
 #include "keyd/signer.hpp"
@@ -290,10 +291,7 @@ void VaultPage::draw(GLFWwindow* window, const i18n::Catalog& tr)
 
 void VaultPage::fetch_balances(int only_index)
 {
-    // EVM and Solana wallets; Bitcoin joins with its esplora reader.
     const keyd::ChainFamily fam = active_family();
-    if (fam == keyd::ChainFamily::Btc)
-        return;
     if (m_bal_job)
         return; // single driver: one balance worker at a time
     const std::vector<std::string>& book
@@ -319,24 +317,30 @@ void VaultPage::fetch_balances(int only_index)
             const chains::ChainRegistry registry
                 = chains::ChainRegistry::from_json(ss.str());
             // The account line prices in the wallet family's first
-            // chain — ETH for EVM books, SOL for Solana ones.
-            const bool sol = fam == keyd::ChainFamily::Sol;
+            // chain — ETH for EVM books, SOL and BTC for their own.
+            const char* fam_key = fam == keyd::ChainFamily::Sol ? "sol"
+                : fam == keyd::ChainFamily::Btc                 ? "btc"
+                                                                : "evm";
             const chains::ChainSpec* home = nullptr;
             for (const chains::ChainSpec& c : registry.all())
-                if (sol ? c.family == "sol" : c.is_evm()) {
+                if (c.family == fam_key) {
                     home = &c;
                     break;
                 }
             if (!home)
                 throw std::runtime_error("no chain for this family");
             const chains::ChainSpec& spec = *home;
-            chains::RpcClient rpc(spec);
+            std::unique_ptr<chains::RpcClient> rpc;
+            if (fam != keyd::ChainFamily::Btc)
+                rpc = std::make_unique<chains::RpcClient>(spec);
             for (const std::string& addr : addrs) {
                 std::string line;
                 try {
-                    const units::U256 wei = sol
-                        ? sol::native_balance(rpc, addr)
-                        : assets::native_balance(rpc, addr);
+                    const units::U256 wei = fam == keyd::ChainFamily::Sol
+                        ? sol::native_balance(*rpc, addr)
+                        : fam == keyd::ChainFamily::Btc
+                        ? btc::native_balance(spec, addr)
+                        : assets::native_balance(*rpc, addr);
                     line = units::format_units(wei, spec.decimals);
                     // Four decimals is garnish enough for a sidebar.
                     const auto dot = line.find('.');

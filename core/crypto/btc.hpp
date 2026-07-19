@@ -34,4 +34,10 @@ std::string btc_p2tr_address(
 // version, wrong length, zero scalar) is nullopt, never a guess.
 std::optional<secure::SecureBytes> wif_to_key(std::string_view wif);
 
+// True iff the text is a Bitcoin mainnet address this wallet can
+// reason about: base58check version 0x00 (P2PKH) or 0x05 (P2SH), or
+// bech32/bech32m under "bc" (segwit v0/v1). Decoding decides — a
+// flipped character fails its checksum, never passes on looks.
+bool valid_btc_address(std::string_view text);
+
 }

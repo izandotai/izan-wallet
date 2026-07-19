@@ -239,6 +239,7 @@ add_library(izan_domain STATIC
     domain/tx/eip1559.cpp
     domain/tx/txflow.cpp
     domain/swap/lifi.cpp
+    domain/btc/esplora.cpp
     domain/sol/solana.cpp
 )
 target_include_directories(izan_domain PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -415,6 +416,7 @@ add_executable(izan_tests
     tests/proposals_test.cpp
     tests/local_clock_test.cpp
     tests/swap_test.cpp
+    tests/btc_domain_test.cpp
     tests/sol_domain_test.cpp
 )
 target_link_libraries(izan_tests PRIVATE izan_crypto izan_secure izan_units

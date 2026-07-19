@@ -140,3 +140,30 @@ std::optional<secure::SecureBytes> wif_to_key(std::string_view wif)
 }
 
 }
+
+namespace izan::crypto {
+
+bool valid_btc_address(std::string_view text)
+{
+    if (text.size() < 26 || text.size() > 90)
+        return false;
+    const std::string z(text);
+    if (text.starts_with("bc1") || text.starts_with("BC1")) {
+        int version = 0;
+        uint8_t program[40];
+        size_t program_len = 0;
+        return segwit_addr_decode(
+                   &version, program, &program_len, "bc", z.c_str())
+            == 1;
+    }
+    if (text[0] == '1' || text[0] == '3') {
+        uint8_t payload[21];
+        return base58_decode_check(
+                   z.c_str(), HASHER_SHA2D, payload, sizeof payload)
+            == sizeof payload
+            && (payload[0] == 0x00 || payload[0] == 0x05);
+    }
+    return false;
+}
+
+}
