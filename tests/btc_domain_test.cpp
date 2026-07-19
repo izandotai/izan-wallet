@@ -249,3 +249,26 @@ TEST_CASE("addresses and scripts are inverses across every costume")
     const uint8_t junk[] = { 0x6a, 0x02, 0xaa, 0xbb }; // OP_RETURN
     CHECK(izan::btc::address_for_script(junk).empty());
 }
+
+TEST_CASE("the fee market reads in tiers and never runs backwards")
+{
+    const auto t = izan::btc::parse_fee_estimates(
+        R"({"1":25.7,"6":12.1,"144":3.0,"504":1.2})");
+    CHECK(t.fast == 26);
+    CHECK(t.normal == 13);
+    CHECK(t.slow == 3);
+    // Sparse answers borrow the faster tier; emptiness floors at 1.
+    const auto sparse = izan::btc::parse_fee_estimates(R"({"1":8.0})");
+    CHECK(sparse.fast == 8);
+    CHECK(sparse.normal == 8);
+    CHECK(sparse.slow == 8);
+    const auto empty = izan::btc::parse_fee_estimates("{}");
+    CHECK(empty.fast == 1);
+    // An inverted market (slow above fast) is clamped monotone.
+    const auto odd
+        = izan::btc::parse_fee_estimates(R"({"1":2.0,"6":9.0,"144":20.0})");
+    CHECK(odd.fast == 2);
+    CHECK(odd.normal == 2);
+    CHECK(odd.slow == 2);
+    CHECK_THROWS(izan::btc::parse_fee_estimates("[]"));
+}
