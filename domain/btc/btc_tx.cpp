@@ -8,6 +8,7 @@ extern "C" {
 #pragma GCC diagnostic ignored "-Wvolatile"
 #include <base58.h>
 #include <hasher.h>
+#include <ripemd160.h>
 #include <segwit_addr.h>
 #include <sha2.h>
 #pragma GCC diagnostic pop
@@ -284,31 +285,181 @@ std::array<uint8_t, 32> sighash_p2wpkh(const TxPlan& plan,
     return sha256d(pre);
 }
 
+std::array<uint8_t, 32> sighash_p2pkh(const TxPlan& plan,
+    std::size_t input_index, std::span<const uint8_t, 20> pubkey_hash160)
+{
+    if (input_index >= plan.inputs.size())
+        throw std::invalid_argument("btc-tx: no such input");
+    // The whole transaction, with the spent output's script standing
+    // in the signed input's slot and every other scriptSig empty.
+    std::vector<uint8_t> pre;
+    put_u32le(pre, plan.version);
+    put_varint(pre, plan.inputs.size());
+    for (std::size_t i = 0; i < plan.inputs.size(); ++i) {
+        put_outpoint(pre, plan.inputs[i]);
+        if (i == input_index) {
+            pre.push_back(0x19);
+            pre.push_back(0x76);
+            pre.push_back(0xa9);
+            pre.push_back(0x14);
+            pre.insert(pre.end(), pubkey_hash160.begin(), pubkey_hash160.end());
+            pre.push_back(0x88);
+            pre.push_back(0xac);
+        } else {
+            put_varint(pre, 0);
+        }
+        put_u32le(pre, plan.inputs[i].sequence);
+    }
+    put_outputs(pre, plan);
+    put_u32le(pre, plan.locktime);
+    put_u32le(pre, 1); // SIGHASH_ALL
+    return sha256d(pre);
+}
+
+std::array<uint8_t, 32> sighash_p2tr(const TxPlan& plan,
+    std::size_t input_index, std::span<const uint8_t> own_script)
+{
+    if (input_index >= plan.inputs.size())
+        throw std::invalid_argument("btc-tx: no such input");
+    // BIP-341 hashes are single sha256, and the digest itself is a
+    // tagged hash — taproot left double-sha behind.
+    auto sha1 = [](std::span<const uint8_t> bytes) {
+        std::array<uint8_t, 32> out;
+        sha256_Raw(bytes.data(), bytes.size(), out.data());
+        return out;
+    };
+    std::vector<uint8_t> buf;
+    for (const TxPlan::In& in : plan.inputs)
+        put_outpoint(buf, in);
+    const auto sha_prevouts = sha1(buf);
+    buf.clear();
+    for (const TxPlan::In& in : plan.inputs)
+        put_u64le(buf, in.value);
+    const auto sha_amounts = sha1(buf);
+    buf.clear();
+    for (std::size_t i = 0; i < plan.inputs.size(); ++i) {
+        put_varint(buf, own_script.size());
+        buf.insert(buf.end(), own_script.begin(), own_script.end());
+    }
+    const auto sha_scripts = sha1(buf);
+    buf.clear();
+    for (const TxPlan::In& in : plan.inputs)
+        put_u32le(buf, in.sequence);
+    const auto sha_sequences = sha1(buf);
+    buf.clear();
+    for (const TxPlan::Out& o : plan.outputs) {
+        put_u64le(buf, o.value);
+        put_varint(buf, o.script.size());
+        buf.insert(buf.end(), o.script.begin(), o.script.end());
+    }
+    const auto sha_outputs = sha1(buf);
+
+    std::vector<uint8_t> msg;
+    msg.push_back(0x00); // epoch
+    msg.push_back(0x00); // SIGHASH_DEFAULT
+    put_u32le(msg, plan.version);
+    put_u32le(msg, plan.locktime);
+    msg.insert(msg.end(), sha_prevouts.begin(), sha_prevouts.end());
+    msg.insert(msg.end(), sha_amounts.begin(), sha_amounts.end());
+    msg.insert(msg.end(), sha_scripts.begin(), sha_scripts.end());
+    msg.insert(msg.end(), sha_sequences.begin(), sha_sequences.end());
+    msg.insert(msg.end(), sha_outputs.begin(), sha_outputs.end());
+    msg.push_back(0x00); // spend type: key path, no annex
+    put_u32le(msg, uint32_t(input_index));
+
+    uint8_t tag_hash[32];
+    static constexpr char kTag[] = "TapSighash";
+    sha256_Raw(
+        reinterpret_cast<const uint8_t*>(kTag), sizeof kTag - 1, tag_hash);
+    SHA256_CTX ctx;
+    sha256_Init(&ctx);
+    sha256_Update(&ctx, tag_hash, 32);
+    sha256_Update(&ctx, tag_hash, 32);
+    sha256_Update(&ctx, msg.data(), msg.size());
+    std::array<uint8_t, 32> out;
+    sha256_Final(&ctx, out.data());
+    return out;
+}
+
 std::vector<uint8_t> assemble_tx(
     const TxPlan& plan, std::span<const Witness> witnesses)
 {
     if (witnesses.size() != plan.inputs.size())
         throw std::invalid_argument("btc-tx: a witness per input, exactly");
+    const bool legacy = plan.spend == SpendKind::P2pkh;
     std::vector<uint8_t> out;
     put_u32le(out, plan.version);
-    out.push_back(0x00); // segwit marker
-    out.push_back(0x01); // flag
+    if (!legacy) {
+        out.push_back(0x00); // segwit marker
+        out.push_back(0x01); // flag
+    }
     put_varint(out, plan.inputs.size());
-    for (const TxPlan::In& in : plan.inputs) {
-        put_outpoint(out, in);
-        put_varint(out, 0);
-        put_u32le(out, in.sequence);
+    for (std::size_t i = 0; i < plan.inputs.size(); ++i) {
+        put_outpoint(out, plan.inputs[i]);
+        if (legacy) {
+            // scriptSig: push(sig || hashtype) push(pubkey)
+            const Witness& w = witnesses[i];
+            put_varint(out, 1 + w.signature_der.size() + 1 + 1 + 33);
+            out.push_back(uint8_t(w.signature_der.size() + 1));
+            out.insert(
+                out.end(), w.signature_der.begin(), w.signature_der.end());
+            out.push_back(0x01);
+            out.push_back(33);
+            out.insert(out.end(), w.pubkey.begin(), w.pubkey.end());
+        } else if (plan.spend == SpendKind::P2shP2wpkh) {
+            // The one-push redeem: OP_0 push20 hash160(pubkey).
+            uint8_t sha[32];
+            sha256_Raw(
+                witnesses[i].pubkey.data(), witnesses[i].pubkey.size(), sha);
+            uint8_t h160[20];
+            ripemd160(sha, sizeof sha, h160);
+            put_varint(out, 23);
+            out.push_back(22);
+            out.push_back(0x00);
+            out.push_back(0x14);
+            out.insert(out.end(), h160, h160 + 20);
+        } else {
+            put_varint(out, 0);
+        }
+        put_u32le(out, plan.inputs[i].sequence);
     }
     put_outputs(out, plan);
-    for (const Witness& w : witnesses) {
-        put_varint(out, 2);
-        put_varint(out, w.signature_der.size() + 1);
-        out.insert(out.end(), w.signature_der.begin(), w.signature_der.end());
-        out.push_back(0x01); // SIGHASH_ALL rides the signature
-        put_varint(out, w.pubkey.size());
-        out.insert(out.end(), w.pubkey.begin(), w.pubkey.end());
+    if (!legacy) {
+        for (const Witness& w : witnesses) {
+            if (plan.spend == SpendKind::P2tr) {
+                // One item: the bare 64-byte schnorr signature —
+                // SIGHASH_DEFAULT appends no type byte.
+                put_varint(out, 1);
+                put_varint(out, w.signature_der.size());
+                out.insert(
+                    out.end(), w.signature_der.begin(), w.signature_der.end());
+                continue;
+            }
+            put_varint(out, 2);
+            put_varint(out, w.signature_der.size() + 1);
+            out.insert(
+                out.end(), w.signature_der.begin(), w.signature_der.end());
+            out.push_back(0x01); // SIGHASH_ALL rides the signature
+            put_varint(out, w.pubkey.size());
+            out.insert(out.end(), w.pubkey.begin(), w.pubkey.end());
+        }
     }
     put_u32le(out, plan.locktime);
+    return out;
+}
+
+std::string txid_of_signed(
+    const TxPlan& plan, std::span<const Witness> witnesses)
+{
+    if (plan.spend != SpendKind::P2pkh)
+        return txid_of(plan);
+    const auto digest = sha256d(assemble_tx(plan, witnesses));
+    static constexpr char kHex[] = "0123456789abcdef";
+    std::string out(64, '0');
+    for (int i = 0; i < 32; ++i) {
+        out[std::size_t(2 * i)] = kHex[digest[std::size_t(31 - i)] >> 4];
+        out[std::size_t(2 * i + 1)] = kHex[digest[std::size_t(31 - i)] & 0xf];
+    }
     return out;
 }
 

@@ -366,19 +366,13 @@ void SendPage::draw_form(const i18n::Catalog& tr)
     kit_vspace(0.6f);
 
     const bool unlocked = m_vault.unlocked() && m_vault.keyd() != nullptr;
-    // The wallet must have a self on the asset's family: an all-chain
-    // seed has all of them, a key wallet only its curve's. Bitcoin
-    // additionally requires the native-segwit costume — the one script
-    // the signer can witness (v1).
+    // The wallet must have a self on the asset own family: an
+    // all-chain seed has all of them, a key wallet only its own.
     const std::string sender = m_vault.family_address(sol_asset ? "sol"
             : btc_asset                                         ? "btc"
                                                                 : "evm");
-    // Having an identity and having a spendable script are different
-    // refusals — a taproot wallet must not be told it has no self.
-    const bool btc_format_ok = !btc_asset
-        || m_vault.family_preset_value("btc")
-            == uint8_t(keyd::DerivePreset::BtcSegwit);
-    const bool can_send = !sender.empty() && btc_format_ok;
+    // Every BTC costume spends now — legacy, nested, native, taproot.
+    const bool can_send = !sender.empty();
     if (unlocked && !sender.empty()) {
         ImGui::PushFont(nullptr, kit_caption_size());
         const std::string who = m_vault.active_name() + " · "
@@ -395,9 +389,7 @@ void SendPage::draw_form(const i18n::Catalog& tr)
         centered_caption(tr("send.state.locked"));
     }
     if (unlocked && !can_send)
-        centered_caption(!sender.empty() && !btc_format_ok
-                ? tr("send.err.btcformat")
-                : tr("send.err.family"));
+        centered_caption(tr("send.err.family"));
 
     kit_vspace(0.5f);
 
@@ -659,8 +651,18 @@ void SendPage::btc_reselect()
     m_btc_sel_err.clear();
     m_proposal = 0;
     m_tx_hash_expect.clear();
+    // Each costume weighs differently on the wire; outputs are
+    // costed at the heaviest common script so the fee never under-
+    // shoots for a taproot recipient.
+    const uint64_t in_vb = m_preset == uint8_t(keyd::DerivePreset::BtcLegacy)
+        ? btc::kVbP2pkh
+        : m_preset == uint8_t(keyd::DerivePreset::BtcNestedSegwit)
+        ? btc::kVbP2shP2wpkh
+        : m_preset == uint8_t(keyd::DerivePreset::BtcTaproot) ? btc::kVbP2tr
+                                                              : btc::kVbP2wpkh;
     try {
-        m_btc_sel = btc::select_coins(m_btc_utxos, m_btc_amount, rate);
+        m_btc_sel
+            = btc::select_coins(m_btc_utxos, m_btc_amount, rate, in_vb, 43);
     } catch (const std::exception& e) {
         m_btc_sel_err = e.what();
     }

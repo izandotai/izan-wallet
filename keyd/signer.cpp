@@ -244,11 +244,8 @@ SignedDigest sign_payload(const vault::Wallet& wallet,
 BtcSignedTx sign_btc_payload(const vault::Wallet& wallet,
     std::span<const uint8_t> payload, uint32_t account, DerivePreset preset)
 {
-    // v1 spends native segwit only — the one script this signer can
-    // witness. Other formats receive; spending them is a later verse.
-    if (preset != DerivePreset::BtcSegwit)
-        throw std::invalid_argument(
-            "signer: only native-segwit spends for now");
+    if (preset_family(preset) != ChainFamily::Btc)
+        throw std::invalid_argument("signer: not a bitcoin preset");
     if (payload.size() < 4)
         throw std::invalid_argument("signer: btc payload truncated");
     const uint32_t skel_len = uint32_t(payload[0]) | uint32_t(payload[1]) << 8
@@ -320,11 +317,45 @@ BtcSignedTx sign_btc_payload(const vault::Wallet& wallet,
         throw std::invalid_argument("signer: fee comes out negative");
     out.fee = total_in - total_out;
 
-    // One signature per input, over exactly what BIP-143 dictates.
+    // One signature per input, each format under its own digest law:
+    // BIP-143 for the segwit pair, the pre-segwit serialization for
+    // legacy, BIP-341's tagged hash under a tweaked schnorr key for
+    // taproot.
+    plan.spend = preset == DerivePreset::BtcLegacy ? btc::SpendKind::P2pkh
+        : preset == DerivePreset::BtcNestedSegwit  ? btc::SpendKind::P2shP2wpkh
+        : preset == DerivePreset::BtcTaproot       ? btc::SpendKind::P2tr
+                                                   : btc::SpendKind::P2wpkh;
     std::vector<btc::Witness> witnesses;
     for (std::size_t i = 0; i < n; ++i) {
+        if (plan.spend == btc::SpendKind::P2tr) {
+            const std::array<uint8_t, 32> digest
+                = btc::sighash_p2tr(plan, i, own);
+            std::optional<std::array<uint8_t, 64>> schnorr;
+            if (hd) {
+                schnorr = hd->sign_taproot(digest);
+            } else {
+                std::array<uint8_t, 32> seckey {};
+                std::memcpy(
+                    seckey.data(), wallet.imported.front().key.data(), 32);
+                std::array<uint8_t, 32> tweaked
+                    = crypto::bip341_tweak_seckey(seckey);
+                sodium_memzero(seckey.data(), seckey.size());
+                std::array<uint8_t, 32> aux {};
+                randombytes_buf(aux.data(), aux.size());
+                schnorr = crypto::bip340_sign(tweaked, digest, aux);
+                sodium_memzero(tweaked.data(), tweaked.size());
+            }
+            if (!schnorr)
+                throw std::runtime_error("signer: signing failed");
+            btc::Witness w;
+            w.signature_der.assign(schnorr->begin(), schnorr->end());
+            witnesses.push_back(std::move(w));
+            continue;
+        }
         const std::array<uint8_t, 32> digest
-            = btc::sighash_p2wpkh(plan, i, h160);
+            = plan.spend == btc::SpendKind::P2pkh
+            ? btc::sighash_p2pkh(plan, i, h160)
+            : btc::sighash_p2wpkh(plan, i, h160);
         std::optional<crypto::EcdsaSignature> sig;
         if (hd) {
             sig = hd->sign_digest(digest);
@@ -359,7 +390,7 @@ BtcSignedTx sign_btc_payload(const vault::Wallet& wallet,
         witnesses.push_back(std::move(w));
     }
     out.tx = btc::assemble_tx(plan, witnesses);
-    out.txid = btc::txid_of(plan);
+    out.txid = btc::txid_of_signed(plan, witnesses);
     {
         const auto skel = btc::encode_skeleton(plan);
         uint8_t once[32];

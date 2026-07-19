@@ -56,6 +56,12 @@ public:
     std::optional<EcdsaSignature> sign_digest(
         std::span<const uint8_t, 32> digest) const;
 
+    // Signs a taproot key-path message: the key is BIP-341 tweaked and
+    // BIP-340 signs with fresh auxiliary randomness, all inside the
+    // class — the private key still never leaves.
+    std::optional<std::array<uint8_t, 64>> sign_taproot(
+        std::span<const uint8_t, 32> msg) const;
+
     ~HdKey();
     HdKey(const HdKey&) = default;
     HdKey& operator=(const HdKey&) = default;

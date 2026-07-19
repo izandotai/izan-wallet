@@ -38,14 +38,24 @@ inline constexpr uint64_t kDustSats = 546;
 // (fractional weight units round up per part).
 uint64_t p2wpkh_vsize(std::size_t inputs, std::size_t outputs);
 
+// Per-input virtual bytes by spend format — the customary safe
+// roundings the fee arithmetic leans on.
+inline constexpr uint64_t kVbP2wpkh = 68;
+inline constexpr uint64_t kVbP2pkh = 148;
+inline constexpr uint64_t kVbP2shP2wpkh = 91;
+inline constexpr uint64_t kVbP2tr = 58;
+
 // Greedy by value, descending, iterated to a fixed point: each added
 // input raises the fee, which may demand another input. Deterministic
 // for a given list. Throws when the coins cannot cover amount + fee.
-CoinSelection select_coins(
-    std::vector<Utxo> utxos, uint64_t amount, uint64_t feerate_sat_vb);
+// input_vb / output_vb let other spend formats bring their weights.
+CoinSelection select_coins(std::vector<Utxo> utxos, uint64_t amount,
+    uint64_t feerate_sat_vb, uint64_t input_vb = kVbP2wpkh,
+    uint64_t output_vb = 31);
 
 // MAX: every coin in, no change; returns the selection whose
 // amount-to-recipient is (total - fee). Throws when fee eats it all.
-CoinSelection sweep_coins(std::vector<Utxo> utxos, uint64_t feerate_sat_vb);
+CoinSelection sweep_coins(std::vector<Utxo> utxos, uint64_t feerate_sat_vb,
+    uint64_t input_vb = kVbP2wpkh, uint64_t output_vb = 31);
 
 }

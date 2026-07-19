@@ -78,8 +78,8 @@ uint64_t p2wpkh_vsize(std::size_t inputs, std::size_t outputs)
     return 11 + 68 * uint64_t(inputs) + 31 * uint64_t(outputs);
 }
 
-CoinSelection select_coins(
-    std::vector<Utxo> utxos, uint64_t amount, uint64_t feerate_sat_vb)
+CoinSelection select_coins(std::vector<Utxo> utxos, uint64_t amount,
+    uint64_t feerate_sat_vb, uint64_t input_vb, uint64_t output_vb)
 {
     if (amount == 0)
         throw std::invalid_argument("btc: zero amount");
@@ -100,8 +100,8 @@ CoinSelection select_coins(
         gathered += u.value;
         // Assume a change output while probing; the no-change case is
         // settled below, where it can only lower the bar.
-        const uint64_t fee
-            = p2wpkh_vsize(sel.inputs.size(), 2) * feerate_sat_vb;
+        const uint64_t fee = (11 + input_vb * sel.inputs.size() + output_vb * 2)
+            * feerate_sat_vb;
         if (gathered >= amount + fee) {
             const uint64_t change = gathered - amount - fee;
             if (change < kDustSats) {
@@ -119,7 +119,8 @@ CoinSelection select_coins(
     throw std::runtime_error("btc: coins cannot cover amount plus fee");
 }
 
-CoinSelection sweep_coins(std::vector<Utxo> utxos, uint64_t feerate_sat_vb)
+CoinSelection sweep_coins(std::vector<Utxo> utxos, uint64_t feerate_sat_vb,
+    uint64_t input_vb, uint64_t output_vb)
 {
     if (utxos.empty())
         throw std::runtime_error("btc: nothing to sweep");
@@ -130,7 +131,7 @@ CoinSelection sweep_coins(std::vector<Utxo> utxos, uint64_t feerate_sat_vb)
     uint64_t total = 0;
     for (const Utxo& u : sel.inputs)
         total += u.value;
-    sel.fee = p2wpkh_vsize(sel.inputs.size(), 1) * feerate_sat_vb;
+    sel.fee = (11 + input_vb * sel.inputs.size() + output_vb) * feerate_sat_vb;
     if (total <= sel.fee + kDustSats)
         throw std::runtime_error("btc: the fee would eat the sweep");
     sel.change = 0;

@@ -2,6 +2,9 @@
 
 #include <algorithm>
 
+#include <sodium.h>
+
+#include "core/crypto/btc.hpp"
 #include "core/crypto/detail/path.hpp"
 
 extern "C" {
@@ -95,6 +98,22 @@ std::optional<EcdsaSignature> HdKey::sign_digest(
     out.y_parity = parity;
     memzero(sig, sizeof sig);
     return out;
+}
+
+std::optional<std::array<uint8_t, 64>> HdKey::sign_taproot(
+    std::span<const uint8_t, 32> msg) const
+{
+    try {
+        std::array<uint8_t, 32> tweaked = bip341_tweak_seckey(
+            std::span<const uint8_t, 32>(node_.private_key, 32));
+        std::array<uint8_t, 32> aux {};
+        randombytes_buf(aux.data(), aux.size());
+        const auto sig = bip340_sign(tweaked, msg, aux);
+        memzero(tweaked.data(), tweaked.size());
+        return sig;
+    } catch (const std::exception&) {
+        return std::nullopt;
+    }
 }
 
 HdKey::~HdKey()

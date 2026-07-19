@@ -675,3 +675,58 @@ TEST_CASE("keyd proposals: a bitcoin spend signs whole, or not at all")
     REQUIRE(poorId);
     CHECK(!keyd.approve_btc(*poorId, sb_from("correct horse")));
 }
+
+TEST_CASE("keyd proposals: every bitcoin costume signs in its own dialect")
+{
+    const std::string vaultPath = make_test_vault("correct horse");
+    const std::string auditPath = temp_file("proposals_btcfmt.audit");
+    std::filesystem::remove(auditPath);
+    KeydClient keyd = KeydClient::spawn(self_exe(), vaultPath, auditPath);
+    REQUIRE(keyd.unlock(sb_from("correct horse")));
+
+    auto spend_as = [&](izan::keyd::DerivePreset preset) {
+        const auto own = keyd.address(0, uint8_t(preset));
+        REQUIRE(own);
+        izan::btc::TxPlan plan;
+        izan::btc::TxPlan::In in;
+        in.txid_be.fill(0x77);
+        in.vout = 0;
+        plan.inputs = { in };
+        izan::btc::TxPlan::Out pay;
+        pay.value = 40000;
+        // A self-spend: one output back to the account itself — the
+        // shape every costume must at least manage.
+        pay.script = izan::btc::script_for_address(*own);
+        plan.outputs = { pay };
+        const auto skel = izan::btc::encode_skeleton(plan);
+        std::vector<uint8_t> payload(4);
+        payload[0] = uint8_t(skel.size());
+        payload[1] = uint8_t(skel.size() >> 8);
+        payload.insert(payload.end(), skel.begin(), skel.end());
+        const uint64_t value = 50000;
+        for (int b = 0; b < 8; ++b)
+            payload.push_back(uint8_t(value >> (8 * b)));
+        const auto id
+            = keyd.submit_ui(izan::keyd::make_envelope(preset, 0, payload));
+        REQUIRE(id);
+        const auto tx = keyd.approve_btc(*id, sb_from("correct horse"));
+        REQUIRE(tx);
+        return *tx;
+    };
+
+    // Legacy: no segwit marker; the scriptSig carries sig and key.
+    const auto legacy = spend_as(izan::keyd::DerivePreset::BtcLegacy);
+    CHECK(legacy[4] != 0x00); // input count, not a marker
+    // Nested: marker plus a 23-byte redeem push in the scriptSig.
+    const auto nested = spend_as(izan::keyd::DerivePreset::BtcNestedSegwit);
+    CHECK(nested[4] == 0x00);
+    CHECK(nested[5] == 0x01);
+    // Taproot: marker, and the witness is a single 64-byte item.
+    const auto taproot = spend_as(izan::keyd::DerivePreset::BtcTaproot);
+    CHECK(taproot[4] == 0x00);
+    CHECK(taproot[5] == 0x01);
+    // ... whose stack reads [count=1][len=64] just before locktime.
+    REQUIRE(taproot.size() > 70);
+    CHECK(taproot[taproot.size() - 70] == 0x01);
+    CHECK(taproot[taproot.size() - 69] == 0x40);
+}
