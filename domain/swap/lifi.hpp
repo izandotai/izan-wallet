@@ -6,7 +6,14 @@
 #include <vector>
 
 #include "core/units/u256.hpp"
-#include "platform/net/http_client.hpp"
+
+// Forward-declared on purpose: the HTTPS client's header drags
+// OpenSSL's SHA typedefs into the TU, and any page that also holds
+// trezor's sha2.h would hit the SHA256_CTX name collision. Pages use
+// the client-less overload below; only lifi.cpp sees the real class.
+namespace izan::net {
+class HttpsClient;
+}
 
 namespace izan::swap {
 
@@ -46,5 +53,11 @@ SwapQuote fetch_quote(net::HttpsClient& client, uint64_t chain_id,
     std::string_view from_token, std::string_view to_token,
     const units::U256& amount, std::string_view from_address,
     std::string_view integrator);
+
+// Connect, quote, close — one call for callers that must not name
+// the HTTPS client type.
+SwapQuote fetch_quote(uint64_t chain_id, std::string_view from_token,
+    std::string_view to_token, const units::U256& amount,
+    std::string_view from_address, std::string_view integrator);
 
 }

@@ -4,6 +4,8 @@
 
 #include <glaze/glaze.hpp>
 
+#include "platform/net/http_client.hpp"
+
 namespace izan::swap {
 
 namespace {
@@ -134,6 +136,15 @@ SwapQuote fetch_quote(net::HttpsClient& client, uint64_t chain_id,
             "lifi: quote answered " + std::to_string(res.status));
     }
     return parse_quote(res.body);
+}
+
+SwapQuote fetch_quote(uint64_t chain_id, std::string_view from_token,
+    std::string_view to_token, const units::U256& amount,
+    std::string_view from_address, std::string_view integrator)
+{
+    net::HttpsClient client("li.quest", "443");
+    return fetch_quote(client, chain_id, from_token, to_token, amount,
+        from_address, integrator);
 }
 
 }

@@ -25,6 +25,7 @@
 #include "ui/pages/history_page.hpp"
 #include "ui/pages/portfolio_page.hpp"
 #include "ui/pages/send_page.hpp"
+#include "ui/pages/swap_page.hpp"
 #include "ui/pages/vault_page.hpp"
 #include "ui/shell/app.hpp"
 #include "ui/shell/chrome_state.hpp"
@@ -78,6 +79,7 @@ void apply_dock_template(ImGuiID dockspace, const ImVec2& size, int tpl)
         ImGui::DockBuilderDockWindow("###portfolio-page", right);
         ImGui::DockBuilderDockWindow("###history-page", right);
         ImGui::DockBuilderDockWindow("###send-page", right_bottom);
+        ImGui::DockBuilderDockWindow("###swap-page", right_bottom);
     } else {
         ImGuiID left = ImGui::DockBuilderSplitNode(
             center, ImGuiDir_Left, 0.27f, nullptr, &center);
@@ -87,6 +89,7 @@ void apply_dock_template(ImGuiID dockspace, const ImVec2& size, int tpl)
             center, ImGuiDir_Down, 0.40f, nullptr, &center);
         ImGui::DockBuilderDockWindow("###wallet-list", left);
         ImGui::DockBuilderDockWindow("###send-page", left_bottom);
+        ImGui::DockBuilderDockWindow("###swap-page", left_bottom);
         ImGui::DockBuilderDockWindow("###vault-page", center);
         // Assets and the ledger share the bottom shelf as tabs.
         ImGui::DockBuilderDockWindow("###portfolio-page", bottom);
@@ -301,6 +304,15 @@ int main(int argc, char** argv)
             send->prefill(chain_id, sym);
         });
 
+    // The swap pane; same containment as its siblings.
+    std::optional<ui::SwapPage> swap;
+    std::string swapError;
+    try {
+        swap.emplace(ui::executable_dir() / "data", state_dir(), vault);
+    } catch (const std::exception& e) {
+        swapError = e.what();
+    }
+
     // The ledger pane; same containment as its siblings.
     std::optional<ui::HistoryPage> history;
     std::string historyError;
@@ -481,6 +493,14 @@ int main(int argc, char** argv)
             ImGui::Begin(
                 (std::string(tr("send.title")) + "###send-page").c_str());
             ImGui::TextWrapped("%s", sendError.c_str());
+            ImGui::End();
+        }
+        if (swap) {
+            swap->draw(app.window(), tr);
+        } else {
+            ImGui::Begin(
+                (std::string(tr("swap.title")) + "###swap-page").c_str());
+            ImGui::TextWrapped("%s", swapError.c_str());
             ImGui::End();
         }
         if (portfolio) {

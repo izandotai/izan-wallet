@@ -364,6 +364,7 @@ if(IZAN_BUILD_UI AND WIN32)
         ui/pages/portfolio_page.cpp
         ui/pages/history_page.cpp
         ui/pages/send_page.cpp
+        ui/pages/swap_page.cpp
         ui/pages/vault_page.cpp
         ui/pages/vault/accounts_view.cpp
         ui/pages/vault/create_view.cpp
