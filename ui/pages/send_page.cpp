@@ -179,8 +179,12 @@ void SendPage::poll_job()
             m_job.reset();
             return;
         }
-        m_stage = Stage::Done; // keep m_job: the screen reads its results
-        if (m_on_settled)
+        // The receipt screen keeps m_job and this branch re-runs every
+        // frame — the settle bell may ring only on the way IN, or the
+        // read-only pages get staleness-marked forever and spin.
+        const bool arriving = m_stage != Stage::Done;
+        m_stage = Stage::Done;
+        if (arriving && m_on_settled)
             m_on_settled();
         return;
     }
