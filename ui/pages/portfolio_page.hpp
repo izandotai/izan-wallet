@@ -77,6 +77,10 @@ private:
                                       // wallet's holdings on the new screen
         std::string error;
         std::vector<Row> rows;
+        // The prices the fiat column was written with; priced = a
+        // fresh fetch succeeded and the page's cache should adopt it.
+        std::map<std::string, double> prices;
+        bool priced = false;
     };
 
     void refresh(const std::string& address);
@@ -109,6 +113,12 @@ private:
     VaultPage& m_vault;
     std::string m_followed;    // the address the shown rows belong to
     double m_fetched_at = 0.0; // frame clock at the last snapshot
+    // Last known USD prices by coingecko id. The feed is rate-limited
+    // and moody; a refresh that cannot price reuses these instead of
+    // blanking the dollar column, and fetches are spaced a minute
+    // apart out of politeness.
+    std::map<std::string, double> m_prices;
+    double m_priced_at = -1.0e9;
     std::vector<Row> m_rows;
     std::function<void(uint64_t, const std::string&)> m_on_send;
     std::function<void(uint64_t, const std::string&)> m_on_swap;

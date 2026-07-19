@@ -723,19 +723,25 @@ void SwapPage::draw_confirm_dialog(const i18n::Catalog& tr)
             if (!chain.explorer.empty()) {
                 const std::string url
                     = chain.explorer + "/tx/" + m_job->tx_hash;
-                const std::string label = kit_elide_middle(
-                    url.c_str(), content, kit_caption_size());
+                // Elide and measure at the size the link draws —
+                // measuring one size and drawing another leaves the
+                // component re-eliding and the centering lying.
+                const std::string label
+                    = kit_elide_middle(url.c_str(), content);
                 kit_vspace(0.2f);
-                // Centered on the window the hero actually made, not
-                // on the dialog's nominal width — a wide receipt line
-                // widens the card and the nominal center drifts left.
                 const float w = ImGui::CalcTextSize(label.c_str()).x;
-                ImGui::SetCursorPosX((ImGui::GetWindowWidth() - w) * 0.5f);
+                const float slack = ImGui::GetContentRegionAvail().x - w;
+                if (slack > 0.0f)
+                    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + slack * 0.5f);
                 kit_hyperlink("##swap-explorer", label.c_str(), url.c_str());
             }
         }
         kit_vspace(0.4f);
-        ImGui::SetCursorPosX((ImGui::GetWindowWidth() - content) * 0.5f);
+        {
+            const float slack = ImGui::GetContentRegionAvail().x - content;
+            if (slack > 0.0f)
+                ImGui::SetCursorPosX(ImGui::GetCursorPosX() + slack * 0.5f);
+        }
         if (kit_subtle_button(tr("ui.back"), content)) {
             m_job.reset();
             if (m_stage == Stage::Done)

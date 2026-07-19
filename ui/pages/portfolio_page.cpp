@@ -113,7 +113,8 @@ void PortfolioPage::refresh(const std::string& address)
     // The reader is single-driver: the refresh control stays disabled
     // until the worker reports back.
     auto reader = m_reader;
-    std::thread([job, reader, address] {
+    const bool want_prices = ImGui::GetTime() - m_priced_at > 60.0;
+    std::thread([job, reader, address, want_prices, cache = m_prices] {
         try {
             for (const auto& h : reader->snapshot(address)) {
                 Row row;
@@ -143,25 +144,33 @@ void PortfolioPage::refresh(const std::string& address)
             // money priced as real money is a lie — and no total is
             // computed at all: every dollar shown is independently
             // checkable against its own row.
-            try {
-                std::vector<std::string> ids;
-                for (const Row& row : job->rows) {
-                    const std::string id = assets::coingecko_id(row.symbol);
-                    if (row.ok && !row.testnet && !id.empty()
-                        && std::find(ids.begin(), ids.end(), id) == ids.end())
-                        ids.push_back(id);
+            job->prices = cache;
+            if (want_prices) {
+                try {
+                    std::vector<std::string> ids;
+                    for (const Row& row : job->rows) {
+                        const std::string id = assets::coingecko_id(row.symbol);
+                        if (row.ok && !row.testnet && !id.empty()
+                            && std::find(ids.begin(), ids.end(), id)
+                                == ids.end())
+                            ids.push_back(id);
+                    }
+                    job->prices = assets::fetch_usd_prices(ids);
+                    job->priced = true;
+                } catch (const std::exception&) {
+                    // Rate-limited or down: yesterday's price beats a
+                    // blank column; the cache stands in.
+                    job->prices = cache;
                 }
-                const auto prices = assets::fetch_usd_prices(ids);
-                for (Row& row : job->rows) {
-                    if (!row.ok || row.testnet)
-                        continue;
-                    const auto hit
-                        = prices.find(assets::coingecko_id(row.symbol));
-                    if (hit == prices.end())
-                        continue;
-                    row.fiat = format_usd(row.approx * hit->second);
-                }
-            } catch (const std::exception&) {
+            }
+            for (Row& row : job->rows) {
+                if (!row.ok || row.testnet)
+                    continue;
+                const auto hit
+                    = job->prices.find(assets::coingecko_id(row.symbol));
+                if (hit == job->prices.end())
+                    continue;
+                row.fiat = format_usd(row.approx * hit->second);
             }
             job->phase.store(1);
         } catch (const std::exception& e) {
@@ -186,6 +195,10 @@ void PortfolioPage::draw(const i18n::Catalog& tr)
         if (phase == 1 && current) {
             m_rows = std::move(m_job->rows);
             m_fetched_at = ImGui::GetTime();
+            if (m_job->priced) {
+                m_prices = std::move(m_job->prices);
+                m_priced_at = m_fetched_at;
+            }
             m_status.clear();
         } else if (phase == 2 && current) {
             if (m_job->error.find("address") != std::string::npos) {
