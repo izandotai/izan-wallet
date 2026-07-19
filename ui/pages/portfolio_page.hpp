@@ -71,6 +71,7 @@ private:
     // fresh token shows up without a restart.
     void rebuild_reader();
     void draw_add_token(const i18n::Catalog& tr);
+    void remove_user_token(uint64_t chain_id, const std::string& address);
 
     // The add-token dialog asks the contract itself for symbol and
     // decimals; a hand-typed identity is never trusted.
@@ -88,6 +89,9 @@ private:
     std::filesystem::path m_user_dir;
     std::vector<chains::ChainSpec> m_chains;     // for the add-token picker
     std::vector<assets::TokenSpec> m_known;      // for the duplicate check
+    // The user's own additions — the only rows that offer "remove";
+    // the shipped set lives under the config digest and stays.
+    std::vector<std::pair<uint64_t, std::string>> m_user_tokens;
     VaultPage& m_vault;
     std::string m_followed;    // the address the shown rows belong to
     double m_fetched_at = 0.0; // frame clock at the last snapshot

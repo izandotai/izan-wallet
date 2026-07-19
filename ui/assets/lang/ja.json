@@ -22,6 +22,7 @@
     "portfolio.warn.config": "チェーン／トークン設定が出荷時の既定と異なります。",
     "asset.menu.contract": "コントラクトアドレスをコピー",
     "asset.menu.explorer": "エクスプローラーで表示",
+    "asset.menu.remove": "トークンを削除",
     "portfolio.addtoken": "+ トークンを追加",
     "addtoken.title": "トークンを追加",
     "addtoken.sub": "シンボルと桁数はコントラクト自身が報告します。",

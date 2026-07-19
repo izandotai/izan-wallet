@@ -22,6 +22,7 @@
     "portfolio.warn.config": "La configurazione di catene e token differisce da quella predefinita.",
     "asset.menu.contract": "Copia l'indirizzo del contratto",
     "asset.menu.explorer": "Apri nell'esploratore",
+    "asset.menu.remove": "Rimuovi token",
     "portfolio.addtoken": "+ Aggiungi token",
     "addtoken.title": "Aggiungi token",
     "addtoken.sub": "Il contratto riporta da sé simbolo e decimali.",

@@ -87,10 +87,13 @@ void PortfolioPage::rebuild_reader()
     // The person's own tokens ride a separate file, outside the
     // shipped set and its digest — absent or malformed, the shipped
     // set stands alone.
+    m_user_tokens.clear();
     try {
-        tokens.extend(assets::TokenRegistry::from_json(
-                          slurp(m_user_dir / "tokens.user.json")),
-            chains);
+        const assets::TokenRegistry user = assets::TokenRegistry::from_json(
+            slurp(m_user_dir / "tokens.user.json"));
+        for (const assets::TokenSpec& t : user.all())
+            m_user_tokens.emplace_back(t.chain_id, t.address);
+        tokens.extend(user, chains);
     } catch (const std::exception&) {
     }
     m_known = tokens.all();
@@ -296,6 +299,16 @@ void PortfolioPage::draw(const i18n::Catalog& tr)
                         + (row.token.empty() ? "/address/" + m_followed
                                              : "/token/" + row.token))
                             .c_str());
+                // Removal is offered only for the user's own rows —
+                // the shipped set is config under digest, not a menu
+                // casualty.
+                const bool user_owned = !row.token.empty()
+                    && std::find(m_user_tokens.begin(), m_user_tokens.end(),
+                           std::pair<uint64_t, std::string>(
+                               row.chain_id, row.token))
+                        != m_user_tokens.end();
+                if (user_owned && kit_menu_item(tr("asset.menu.remove")))
+                    remove_user_token(row.chain_id, row.token);
                 kit_menu_end();
             }
             ImGui::PopID();
@@ -319,6 +332,37 @@ void PortfolioPage::draw(const i18n::Catalog& tr)
     }
 
     ImGui::End();
+}
+
+void PortfolioPage::remove_user_token(
+    uint64_t chain_id, const std::string& address)
+{
+    std::vector<UserTokenRow> rows;
+    {
+        std::ifstream f(m_user_dir / "tokens.user.json", std::ios::binary);
+        if (f) {
+            std::ostringstream ss;
+            ss << f.rdbuf();
+            std::vector<UserTokenRow> parsed;
+            if (!glz::read<glz::opts { .error_on_unknown_keys = false }>(
+                    parsed, ss.str()))
+                rows = std::move(parsed);
+        }
+    }
+    std::erase_if(rows, [&](const UserTokenRow& r) {
+        return r.chain_id == chain_id && r.address == address;
+    });
+    std::string out;
+    if (!glz::write<glz::opts { .prettify = true }>(rows, out)) {
+        std::ofstream f(m_user_dir / "tokens.user.json",
+            std::ios::binary | std::ios::trunc);
+        f << out;
+    }
+    rebuild_reader();
+    // Same trick as adding: an emptied follow re-runs the follow logic
+    // next frame — rows clear, a refresh fires, in-flight snapshots
+    // are chased.
+    m_followed.clear();
 }
 
 void PortfolioPage::draw_add_token(const i18n::Catalog& tr)

@@ -22,6 +22,7 @@
     "portfolio.warn.config": "链/代币配置与出厂默认不一致。",
     "asset.menu.contract": "复制合约地址",
     "asset.menu.explorer": "在浏览器中查看",
+    "asset.menu.remove": "移除代币",
     "portfolio.addtoken": "+ 添加代币",
     "addtoken.title": "添加代币",
     "addtoken.sub": "代币的符号与精度由合约自己报告。",
