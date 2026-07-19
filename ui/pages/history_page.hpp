@@ -26,6 +26,13 @@ public:
 
     void draw(const i18n::Catalog& tr);
 
+    // Money moved elsewhere: forget the follow so the next frame
+    // re-pulls the ledger.
+    void mark_stale()
+    {
+        m_followed.clear();
+    }
+
 private:
     struct Row {
         std::string hash;

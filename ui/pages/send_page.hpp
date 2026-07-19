@@ -4,6 +4,7 @@
 #include <atomic>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -42,6 +43,13 @@ public:
     // The assets page hands over a clicked holding: select the
     // matching asset and bring this page forward.
     void prefill(uint64_t chain_id, const std::string& symbol);
+
+    // Fires once when a delivery settles (confirmed or reverted —
+    // either way gas moved); the host refreshes the read-only pages.
+    void on_settled(std::function<void()> fn)
+    {
+        m_on_settled = std::move(fn);
+    }
 
 private:
     enum class Stage {
@@ -116,7 +124,8 @@ private:
     bool m_token_send = false;  // fee and amount live in different units
     uint64_t m_proposal = 0;
 
-    std::string m_status;       // key or verbatim error
+    std::function<void()> m_on_settled;
+    std::string m_status; // key or verbatim error
     bool m_status_is_key = false;
     std::shared_ptr<Job> m_job;
 };

@@ -328,6 +328,19 @@ int main(int argc, char** argv)
         historyError = e.what();
     }
 
+    // A settled delivery anywhere staleness-marks the read-only pages;
+    // their follow logic re-pulls balances and ledger next frame.
+    const auto settled = [&portfolio, &history] {
+        if (portfolio)
+            portfolio->mark_stale();
+        if (history)
+            history->mark_stale();
+    };
+    if (send)
+        send->on_settled(settled);
+    if (swap)
+        swap->on_settled(settled);
+
     app.set_render_callback([&] {
         app.begin_frame();
 

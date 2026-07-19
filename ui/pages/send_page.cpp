@@ -180,6 +180,8 @@ void SendPage::poll_job()
             return;
         }
         m_stage = Stage::Done; // keep m_job: the screen reads its results
+        if (m_on_settled)
+            m_on_settled();
         return;
     }
     m_status = m_job->error;

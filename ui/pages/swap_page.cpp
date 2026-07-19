@@ -220,6 +220,8 @@ void SwapPage::poll_job()
             return;
         }
         m_stage = Stage::Done; // keep m_job: the screen reads its results
+        if (m_on_settled)
+            m_on_settled();
         return;
     }
     m_status = m_job->error;
@@ -687,14 +689,17 @@ void SwapPage::draw_confirm_dialog(const i18n::Catalog& tr)
                     = chain.explorer + "/tx/" + m_job->tx_hash;
                 const std::string label = kit_elide_middle(
                     url.c_str(), content, kit_caption_size());
-                centered_caption(""); // spacing beat before the link
+                kit_vspace(0.2f);
+                // Centered on the window the hero actually made, not
+                // on the dialog's nominal width — a wide receipt line
+                // widens the card and the nominal center drifts left.
                 const float w = ImGui::CalcTextSize(label.c_str()).x;
-                ImGui::SetCursorPosX(
-                    ImGui::GetCursorPosX() + (content - w) * 0.5f);
+                ImGui::SetCursorPosX((ImGui::GetWindowWidth() - w) * 0.5f);
                 kit_hyperlink("##swap-explorer", label.c_str(), url.c_str());
             }
         }
         kit_vspace(0.4f);
+        ImGui::SetCursorPosX((ImGui::GetWindowWidth() - content) * 0.5f);
         if (kit_subtle_button(tr("ui.back"), content)) {
             m_job.reset();
             if (m_stage == Stage::Done)

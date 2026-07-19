@@ -48,6 +48,14 @@ public:
         m_on_swap = std::move(fn);
     }
 
+    // Money moved elsewhere (a send or swap settled): forget the
+    // followed address so the next frame's follow logic re-pulls —
+    // the established clean-refresh path, chase gate included.
+    void mark_stale()
+    {
+        m_followed.clear();
+    }
+
 private:
     struct Row {
         uint64_t chain_id = 0;
