@@ -398,10 +398,10 @@ TEST_CASE("the SPL transfer wears one shape and the table cannot be rerouted")
     CHECK(back.decimals == 6);
     CHECK(back.blockhash == hash);
 
-    // Self-transfers are refused up front, not encoded misshapen.
-    CHECK_THROWS(
-        izan::sol::encode_spl_transfer(alice, alice, usdc, 1, 6, hash));
+    // Zero amounts are refused up front, whatever the shape.
     CHECK_THROWS(izan::sol::encode_spl_transfer(alice, bob, usdc, 0, 6, hash));
+    CHECK_THROWS(
+        izan::sol::encode_spl_transfer(alice, alice, usdc, 0, 6, hash));
 
     // The whitelist: reroute any account and the parser walks away.
     auto tamper = [&](std::size_t at, uint8_t v) {
@@ -449,6 +449,33 @@ TEST_CASE("a Token-2022 transfer keeps its own program and its own doors")
     const auto classic_keys = std::span(classic).subspan(4 + 192, 32);
     std::copy(classic_keys.begin(), classic_keys.end(), half.begin() + 4 + 192);
     CHECK_THROWS(izan::sol::parse_spl_transfer(half));
+}
+
+TEST_CASE("an SPL self-transfer wears its own smaller table")
+{
+    const char* alice = "HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk";
+    const char* pump = "3WjLscH2JsXLEFJZRA9z8ti8yRGxWGKbqymPd7UicRth";
+    std::array<uint8_t, 32> hash {};
+    hash.fill(0x55);
+    for (const bool t22 : { false, true }) {
+        const auto msg = izan::sol::encode_spl_transfer(
+            alice, alice, pump, 321, 6, hash, t22);
+        const auto back = izan::sol::parse_spl_transfer(msg);
+        CHECK(back.owner == alice);
+        CHECK(back.dest == alice);
+        CHECK(back.mint == pump);
+        CHECK(back.amount == 321);
+        CHECK(back.token2022 == t22);
+        // Reroute the single ATA and the duel walks away.
+        auto bad = msg;
+        bad[4 + 32 + 7] ^= 0x01;
+        CHECK_THROWS(izan::sol::parse_spl_transfer(bad));
+        // The System parser refuses the shape outright.
+        CHECK_THROWS(izan::sol::parse_transfer_message(msg));
+        auto trailing = msg;
+        trailing.push_back(0);
+        CHECK_THROWS(izan::sol::parse_spl_transfer(trailing));
+    }
 }
 
 TEST_CASE("a mint's on-chain card is found, read and defanged")

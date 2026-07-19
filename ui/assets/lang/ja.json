@@ -147,5 +147,9 @@
     "layout.workbench": "ワークベンチ",
     "layout.classic": "クラシック3列",
     "history.title": "履歴",
-    "history.empty": "ウォレットを解錠すると取引が表示されます。"
+    "history.empty": "ウォレットを解錠すると取引が表示されます。",
+    "chrome.minimize": "最小化",
+    "chrome.maximize": "最大化",
+    "chrome.restore": "元に戻す",
+    "chrome.close": "閉じる"
 }

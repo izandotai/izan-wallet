@@ -345,6 +345,13 @@ int main(int argc, char** argv)
     app.set_render_callback([&] {
         app.begin_frame();
 
+        // The chrome's caption tooltips speak whatever the catalog
+        // speaks; the frame itself owns no translations.
+        chrome.caption_minimize = tr("chrome.minimize");
+        chrome.caption_maximize = tr("chrome.maximize");
+        chrome.caption_restore = tr("chrome.restore");
+        chrome.caption_close = tr("chrome.close");
+
         ui::draw_main_window_frame(chrome);
         ui::draw_custom_title_bar(app.window(), chrome, tr("app.title"),
             vault.unlocked() ? tr("vault.state.unlocked")

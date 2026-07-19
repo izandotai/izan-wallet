@@ -79,7 +79,7 @@ FetchContent_Declare(glaze
 # pin the commit.
 FetchContent_Declare(izan_crypto
     GIT_REPOSITORY https://github.com/izandotai/izan-crypto.git
-    GIT_TAG 83899cb
+    GIT_TAG 442f55b
     EXCLUDE_FROM_ALL
 )
 # The UI framework, its own repository as well: window shell, widget
@@ -90,7 +90,7 @@ FetchContent_Declare(izan_crypto
 option(IZAN_BUILD_UI "Build the wallet UI" ON)
 FetchContent_Declare(izan_ui
     GIT_REPOSITORY https://github.com/izandotai/izan-ui.git
-    GIT_TAG 4ac5199
+    GIT_TAG c74e9ad
     EXCLUDE_FROM_ALL
 )
 if(NOT (IZAN_BUILD_UI AND WIN32))

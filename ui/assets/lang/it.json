@@ -147,5 +147,9 @@
     "layout.workbench": "Banco di lavoro",
     "layout.classic": "Colonne classiche",
     "history.title": "Cronologia",
-    "history.empty": "Sblocca un portafoglio per vedere le sue transazioni."
+    "history.empty": "Sblocca un portafoglio per vedere le sue transazioni.",
+    "chrome.minimize": "Riduci",
+    "chrome.maximize": "Ingrandisci",
+    "chrome.restore": "Ripristina",
+    "chrome.close": "Chiudi"
 }

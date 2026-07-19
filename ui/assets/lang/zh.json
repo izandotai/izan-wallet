@@ -147,5 +147,9 @@
     "layout.workbench": "工作台",
     "layout.classic": "经典三栏",
     "history.title": "历史",
-    "history.empty": "解锁钱包后显示交易记录。"
+    "history.empty": "解锁钱包后显示交易记录。",
+    "chrome.minimize": "最小化",
+    "chrome.maximize": "最大化",
+    "chrome.restore": "还原",
+    "chrome.close": "关闭"
 }

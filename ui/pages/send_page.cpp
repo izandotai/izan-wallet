@@ -546,13 +546,6 @@ void SendPage::begin_sol_review()
     if (m_spl_send) {
         m_spl_amount = m_sol_lamports;
         m_sol_lamports = 0;
-        // The deduplicated table cannot wear a self-transfer; send to
-        // another of your own wallets instead.
-        if (m_from == m_to_checked) {
-            m_status = "send.err.address";
-            m_status_is_key = true;
-            return;
-        }
     }
     auto job = std::make_shared<Job>();
     m_job = job;
