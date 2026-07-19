@@ -42,4 +42,29 @@ units::U256 erc20_balance(
             + "\"},\"latest\"]"));
 }
 
+TokenProbe probe_token(chains::RpcClient& rpc, std::string_view token)
+{
+    const std::string contract = require_address(token);
+    auto read = [&](const char* signature) {
+        const std::string data = codec::CallData(signature).to_hex();
+        return rpc.call_string("eth_call",
+            "[{\"to\":\"" + contract + "\",\"data\":\"" + data
+                + "\"},\"latest\"]");
+    };
+
+    TokenProbe out;
+    out.symbol = codec::decode_abi_string(read("symbol()"));
+    if (out.symbol.empty() || out.symbol.size() > 32)
+        throw std::runtime_error("token symbol unreadable");
+    const units::U256 dec = codec::decode_u256(read("decimals()"));
+    const std::string dec_str = dec.to_dec();
+    if (dec_str.size() > 2 || dec_str.empty())
+        throw std::runtime_error("token decimals out of range");
+    const int dec_val = std::stoi(dec_str);
+    if (dec_val > 77)
+        throw std::runtime_error("token decimals out of range");
+    out.decimals = uint8_t(dec_val);
+    return out;
+}
+
 }

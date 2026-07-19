@@ -3,12 +3,15 @@
 #include <algorithm>
 #include <charconv>
 #include <cstdio>
+#include <cstring>
 #include <fstream>
 #include <sstream>
 #include <thread>
 
+#include <glaze/glaze.hpp>
 #include <imgui.h>
 
+#include "core/crypto/eth.hpp"
 #include "core/units/decimal.hpp"
 #include "domain/assets/prices.hpp"
 #include "domain/config/config_trust.hpp"
@@ -27,6 +30,16 @@ namespace {
         ss << f.rdbuf();
         return ss.str();
     }
+
+    // The user token file's own row shape — a plain mirror of
+    // tokens.json entries, written back pretty so the file stays
+    // hand-editable.
+    struct UserTokenRow {
+        uint64_t chain_id {};
+        std::string address;
+        std::string symbol;
+        uint8_t decimals {};
+    };
 
     // "$1,234.56" — two decimals, thousands grouped. Fiat is a read of
     // the moment, not an accounting figure; two decimals is honest.
@@ -49,28 +62,38 @@ namespace {
 
 PortfolioPage::PortfolioPage(const std::filesystem::path& data_dir,
     const std::filesystem::path& user_dir, VaultPage& vault)
-    : m_vault(vault)
+    : m_data_dir(data_dir)
+    , m_user_dir(user_dir)
+    , m_vault(vault)
 {
-    const std::string chainsJson = slurp(data_dir / "chains.json");
-    const std::string tokensJson = slurp(data_dir / "tokens.json");
+    rebuild_reader();
+}
+
+void PortfolioPage::rebuild_reader()
+{
+    const std::string chainsJson = slurp(m_data_dir / "chains.json");
+    const std::string tokensJson = slurp(m_data_dir / "tokens.json");
     m_config_modified = config::classify("chains.json", chainsJson)
             != config::Trust::ShippedDefault
         || config::classify("tokens.json", tokensJson)
             != config::Trust::ShippedDefault;
 
     chains::ChainRegistry chains = chains::ChainRegistry::from_json(chainsJson);
+    m_explorers.clear();
     for (const chains::ChainSpec& spec : chains.all())
         m_explorers[spec.chain_id] = spec.explorer;
+    m_chains = chains.all();
     assets::TokenRegistry tokens = assets::TokenRegistry::from_json(tokensJson);
     // The person's own tokens ride a separate file, outside the
     // shipped set and its digest — absent or malformed, the shipped
     // set stands alone.
     try {
         tokens.extend(assets::TokenRegistry::from_json(
-                          slurp(user_dir / "tokens.user.json")),
+                          slurp(m_user_dir / "tokens.user.json")),
             chains);
     } catch (const std::exception&) {
     }
+    m_known = tokens.all();
 
     m_reader = std::make_shared<assets::PortfolioReader>(
         std::move(chains), std::move(tokens));
@@ -283,7 +306,156 @@ void PortfolioPage::draw(const i18n::Catalog& tr)
         kit_empty_state("💼", tr("portfolio.empty"));
     }
 
+    // The door to the user's own token list — only when a wallet is
+    // on stage; a locked page has nothing to add to.
+    if (!mine.empty()) {
+        kit_vspace(0.35f);
+        centered_x(kit_button_width(tr("portfolio.addtoken")));
+        if (kit_link_button(tr("portfolio.addtoken"))) {
+            m_add_status.clear();
+            kit_dialog_open("##add-token");
+        }
+        draw_add_token(tr);
+    }
+
     ImGui::End();
+}
+
+void PortfolioPage::draw_add_token(const i18n::Catalog& tr)
+{
+    if (m_probe && m_probe->phase.load() != 0) {
+        if (m_probe->phase.load() == 1) {
+            m_add_preview = m_probe->found;
+            m_preview_chain = m_probe->chain_id;
+            m_preview_addr = m_probe->address;
+            m_add_status.clear();
+        } else {
+            m_add_preview.reset();
+            m_add_status = m_probe->error;
+        }
+        m_probe.reset();
+    }
+
+    bool dismissed = false;
+    if (!kit_dialog_begin("##add-token", &dismissed))
+        return;
+    if (dismissed) {
+        m_add_preview.reset();
+        m_add_status.clear();
+    }
+    kit_dialog_header_icon("💰", tr("addtoken.title"), tr("addtoken.sub"));
+
+    if (m_add_chain >= int(m_chains.size()))
+        m_add_chain = 0;
+    const chains::ChainSpec& sel = m_chains[std::size_t(m_add_chain)];
+    kit_dialog_field_width();
+    if (kit_select_begin("##add-chain", sel.name.c_str())) {
+        for (int i = 0; i < int(m_chains.size()); ++i)
+            if (kit_select_item(
+                    m_chains[std::size_t(i)].name.c_str(), i == m_add_chain))
+                m_add_chain = i;
+        kit_select_end();
+    }
+    kit_dialog_field_width();
+    kit_address_field("##add-addr", tr("addtoken.hint"), m_add_addr.data(),
+        m_add_addr.size(), tr("ui.paste"), tr("ui.copy_action"), tr("ui.clear"),
+        [](const char* s) { return !crypto::eth_checksum_address(s).empty(); });
+
+    const std::string checked = crypto::eth_checksum_address(m_add_addr.data());
+    const bool probing = m_probe != nullptr;
+    // The preview only speaks for the pair it was probed on; touch
+    // the chain or the address and it steps down.
+    const bool preview_live = m_add_preview.has_value()
+        && m_preview_chain == sel.chain_id && m_preview_addr == checked;
+
+    kit_vspace(0.2f);
+    ImGui::BeginDisabled(checked.empty() || probing);
+    if (kit_subtle_button(tr("addtoken.probe"))) {
+        auto job = std::make_shared<ProbeJob>();
+        job->chain_id = sel.chain_id;
+        job->address = checked;
+        m_probe = job;
+        m_add_status.clear();
+        std::thread([job, spec = sel]() {
+            try {
+                chains::RpcClient rpc(spec);
+                job->found = assets::probe_token(rpc, job->address);
+                job->phase.store(1);
+            } catch (const std::exception& e) {
+                job->error = e.what();
+                job->phase.store(2);
+            } catch (...) {
+                job->error = "probe failed";
+                job->phase.store(2);
+            }
+        }).detach();
+    }
+    ImGui::EndDisabled();
+    if (probing) {
+        ImGui::SameLine();
+        kit_spinner(0.55f);
+    } else if (preview_live) {
+        ImGui::SameLine();
+        ImGui::PushFont(nullptr, kit_caption_size());
+        ImGui::Text("%s · %u", m_add_preview->symbol.c_str(),
+            unsigned(m_add_preview->decimals));
+        ImGui::PopFont();
+    }
+    if (!m_add_status.empty()) {
+        kit_vspace(0.15f);
+        kit_footnote(
+            m_add_status.c_str(), ImGui::GetFontSize() * design().dialog_width);
+    }
+
+    const int choice = kit_dialog_buttons(
+        tr("ui.cancel"), tr("addtoken.add"), preview_live && !probing);
+    if (choice == 2) {
+        bool known = false;
+        for (const assets::TokenSpec& t : m_known)
+            known = known
+                || (t.chain_id == m_preview_chain && t.address == checked);
+        if (known) {
+            m_add_status = tr("addtoken.exists");
+        } else {
+            // Read-modify-write the user file; a malformed existing
+            // file is abandoned rather than obeyed.
+            std::vector<UserTokenRow> rows;
+            {
+                std::ifstream f(
+                    m_user_dir / "tokens.user.json", std::ios::binary);
+                if (f) {
+                    std::ostringstream ss;
+                    ss << f.rdbuf();
+                    std::vector<UserTokenRow> parsed;
+                    if (!glz::read<glz::opts {
+                            .error_on_unknown_keys = false }>(parsed, ss.str()))
+                        rows = std::move(parsed);
+                }
+            }
+            rows.push_back({ m_preview_chain, checked, m_add_preview->symbol,
+                m_add_preview->decimals });
+            std::string out;
+            if (!glz::write<glz::opts { .prettify = true }>(rows, out)) {
+                std::ofstream f(m_user_dir / "tokens.user.json",
+                    std::ios::binary | std::ios::trunc);
+                f << out;
+            }
+            rebuild_reader();
+            m_add_preview.reset();
+            std::memset(m_add_addr.data(), 0, m_add_addr.size());
+            // Emptying the followed address makes the next frame's
+            // follow logic treat this as a wallet switch: rows clear,
+            // a refresh fires, and the swallowed-refresh chase covers
+            // a snapshot already in flight.
+            m_followed.clear();
+            kit_dialog_close();
+        }
+    } else if (choice == 1) {
+        m_add_preview.reset();
+        m_add_status.clear();
+        kit_dialog_close();
+    }
+    kit_dialog_end();
 }
 
 }

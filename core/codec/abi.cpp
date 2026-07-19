@@ -87,4 +87,49 @@ units::U256 decode_u256(std::string_view hex_result)
     return units::U256::from_hex(hex_result);
 }
 
+std::string decode_abi_string(std::string_view hex_result)
+{
+    if (hex_result.starts_with("0x") || hex_result.starts_with("0X"))
+        hex_result.remove_prefix(2);
+    if (hex_result.size() % 2 != 0)
+        throw std::invalid_argument("abi: odd hex length");
+    std::vector<uint8_t> bytes;
+    bytes.reserve(hex_result.size() / 2);
+    for (std::size_t i = 0; i < hex_result.size(); i += 2)
+        bytes.push_back(
+            uint8_t(nibble(hex_result[i]) << 4 | nibble(hex_result[i + 1])));
+
+    // One bare word: the pre-standard bytes32 form — text up to the
+    // first NUL.
+    if (bytes.size() == 32) {
+        std::size_t len = 0;
+        while (len < 32 && bytes[len] != 0)
+            ++len;
+        return std::string(bytes.begin(), bytes.begin() + long(len));
+    }
+
+    // The canonical dynamic string: offset word, length word, data.
+    if (bytes.size() < 64)
+        throw std::invalid_argument("abi: not a string result");
+    auto word_u64 = [&](std::size_t at) -> uint64_t {
+        for (std::size_t i = 0; i < 24; ++i)
+            if (bytes[at + i] != 0)
+                throw std::invalid_argument("abi: string word out of range");
+        uint64_t v = 0;
+        for (std::size_t i = 24; i < 32; ++i)
+            v = v << 8 | bytes[at + i];
+        return v;
+    };
+    const uint64_t offset = word_u64(0);
+    if (offset + 32 > bytes.size())
+        throw std::invalid_argument("abi: string offset out of bounds");
+    const uint64_t len = word_u64(std::size_t(offset));
+    if (len > 256)
+        throw std::invalid_argument("abi: string implausibly long");
+    if (offset + 32 + len > bytes.size())
+        throw std::invalid_argument("abi: string length out of bounds");
+    return std::string(bytes.begin() + long(offset) + 32,
+        bytes.begin() + long(offset) + 32 + long(len));
+}
+
 }

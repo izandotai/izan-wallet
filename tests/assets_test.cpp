@@ -139,3 +139,33 @@ TEST_CASE("user token file folds in, minus nonsense")
     REQUIRE(tokens.all().size() == 2);
     CHECK(tokens.all()[1].symbol == "MEME");
 }
+
+//   IZAN_LIVE_TESTS=1 build/izan_tests.exe -tc="*probe*"
+TEST_CASE("live: a token describes itself to the add form")
+{
+    if (!std::getenv("IZAN_LIVE_TESTS")) {
+        MESSAGE("skipped (set IZAN_LIVE_TESTS=1 to run against mainnet)");
+        return;
+    }
+
+    ChainRegistry reg = shipped_registry();
+    const ChainSpec* eth = reg.by_id(1);
+    REQUIRE(eth);
+    RpcClient rpc(*eth);
+
+    // Canonical dynamic string: mainnet USDC.
+    const auto usdc = izan::assets::probe_token(
+        rpc, "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
+    CHECK(usdc.symbol == "USDC");
+    CHECK(usdc.decimals == 6);
+
+    // Pre-standard bytes32 symbol: MKR still speaks it.
+    const auto mkr = izan::assets::probe_token(
+        rpc, "0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2");
+    CHECK(mkr.symbol == "MKR");
+    CHECK(mkr.decimals == 18);
+
+    // An EOA is not a token; the probe must refuse, not invent.
+    CHECK_THROWS(izan::assets::probe_token(
+        rpc, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"));
+}

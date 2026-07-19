@@ -43,4 +43,13 @@ private:
 // anything shorter ("0x" from a non-contract) or longer throws.
 units::U256 decode_u256(std::string_view hex_result);
 
+// A string call result — symbol() and name(). Two encodings live in
+// the wild: the canonical dynamic string (offset word, length word,
+// packed bytes) and the pre-standard bytes32 (MKR and friends) where
+// the text ends at the first NUL. Length is capped at 256 bytes — a
+// "symbol" the size of a paragraph is an answer from something that
+// is not a token. Malformed shapes throw; an empty string is the
+// caller's judgment call.
+std::string decode_abi_string(std::string_view hex_result);
+
 }

@@ -108,3 +108,27 @@ TEST_CASE("to_bytes mirrors to_hex byte for byte")
     // 1'000'000 == 0x0f4240 rides in the last three bytes.
     CHECK(spelled.substr(spelled.size() - 6) == "0f4240");
 }
+
+TEST_CASE("decode_abi_string reads both encodings in the wild")
+{
+    using izan::codec::decode_abi_string;
+    // Canonical dynamic string: offset 0x20, length 4, "USDC" padded.
+    const std::string usdc = "0x" + std::string(62, '0') + "20"
+        + std::string(62, '0') + "04" + "55534443" + std::string(56, '0');
+    CHECK(decode_abi_string(usdc) == "USDC");
+    // Pre-standard bytes32 (MKR speaks this): text to the first NUL.
+    const std::string mkr = "0x4d4b52" + std::string(58, '0');
+    CHECK(decode_abi_string(mkr) == "MKR");
+    // An all-NUL word is an empty string, not an error — the caller
+    // judges emptiness.
+    CHECK(decode_abi_string("0x" + std::string(64, '0')).empty());
+    // Garbage shapes throw: too short, offset off the map, a length
+    // beyond the data, a paragraph-sized "symbol".
+    CHECK_THROWS(decode_abi_string("0x1234"));
+    const std::string far_offset
+        = "0x" + std::string(56, '0') + "ffffffff" + std::string(64, '0');
+    CHECK_THROWS(decode_abi_string(far_offset));
+    const std::string liar_len
+        = "0x" + std::string(62, '0') + "20" + std::string(60, '0') + "ffff";
+    CHECK_THROWS(decode_abi_string(liar_len));
+}

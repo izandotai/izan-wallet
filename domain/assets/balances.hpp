@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+#include <string>
 #include <string_view>
 
 #include "core/units/u256.hpp"
@@ -18,5 +20,16 @@ units::U256 native_balance(chains::RpcClient& rpc, std::string_view address);
 // units. A non-contract token address surfaces as a decode error.
 units::U256 erc20_balance(
     chains::RpcClient& rpc, std::string_view token, std::string_view holder);
+
+// A token's self-description, asked of the contract itself — the add
+// form must never trust a hand-typed symbol or decimals. An empty
+// symbol or decimals beyond the display range throw: whatever
+// answered is not a token this wallet can show honestly.
+struct TokenProbe {
+    std::string symbol;
+    uint8_t decimals {};
+};
+
+TokenProbe probe_token(chains::RpcClient& rpc, std::string_view token);
 
 }
