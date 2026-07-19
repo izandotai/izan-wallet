@@ -263,6 +263,18 @@ void HistoryPage::draw(const i18n::Catalog& tr)
         refresh(mine);
     }
 
+    // The page's identity mark, the same voice as the send page's 📤.
+    kit_vspace(0.8f);
+    {
+        ImGui::PushFont(nullptr, kit_snap(em * 2.1f));
+        const float w = ImGui::CalcTextSize("🧾").x;
+        if (avail > w)
+            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (avail - w) * 0.5f);
+        ImGui::TextUnformatted("🧾");
+        ImGui::PopFont();
+    }
+    kit_vspace(0.4f);
+
     // Controls on one centered line, same grammar as the assets page.
     kit_vspace(0.25f);
     auto centered_x = [&](float item_w) {
@@ -312,8 +324,7 @@ void HistoryPage::draw(const i18n::Catalog& tr)
             if (kit_tx_row(row.hash.c_str(), row.incoming,
                     row.counterparty.c_str(), row.note.c_str(),
                     row.amount.c_str(), row.failed, row.hash.c_str(),
-                    row.when_hint.empty() ? nullptr : row.when_hint.c_str(),
-                    row.symbol.empty() ? nullptr : row.symbol.c_str())
+                    row.when_hint.empty() ? nullptr : row.when_hint.c_str())
                 && !row.link.empty())
                 kit_open_url(row.link.c_str());
             ImGui::PopID();
