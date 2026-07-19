@@ -84,7 +84,10 @@ private:
         bool priced = false;
     };
 
-    void refresh(const std::string& address);
+    // All-chain refresh: the active identity's face on each family
+    // (evm/btc/sol order, empty = that family has no self here). One
+    // worker walks whichever engines have an address to ask about.
+    void refresh(const std::array<std::string, 3>& addrs);
     // (Re)loads chains/tokens/user tokens and rebuilds the reader —
     // the constructor's body, shared with the add-token flow so a
     // fresh token shows up without a restart.
@@ -112,11 +115,9 @@ private:
     // the shipped set lives under the config digest and stays.
     std::vector<std::pair<uint64_t, std::string>> m_user_tokens;
     VaultPage& m_vault;
-    std::string m_followed; // the address the shown rows belong to
-    // Which balance engine the followed address needs — EVM reader,
-    // Solana RPC, or (later) esplora. Rides every refresh.
-    keyd::ChainFamily m_family = keyd::ChainFamily::Eth;
-    double m_fetched_at = 0.0; // frame clock at the last snapshot
+    std::string m_followed; // family addresses joined — the follow key
+    std::array<std::string, 3> m_addrs {}; // evm/btc/sol faces
+    double m_fetched_at = 0.0;             // frame clock at the last snapshot
     // Last known USD prices by coingecko id. The feed is rate-limited
     // and moody; a refresh that cannot price reuses these instead of
     // blanking the dollar column, and fetches are spaced a minute

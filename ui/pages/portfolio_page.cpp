@@ -104,28 +104,28 @@ void PortfolioPage::rebuild_reader()
         std::move(chains), std::move(tokens));
 }
 
-void PortfolioPage::refresh(const std::string& address)
+void PortfolioPage::refresh(const std::array<std::string, 3>& addrs)
 {
-    if (address.empty() || m_job)
+    if ((addrs[0].empty() && addrs[1].empty() && addrs[2].empty()) || m_job)
         return;
     m_status.clear();
     auto job = std::make_shared<Job>();
-    job->address = address;
+    job->address = addrs[0] + "|" + addrs[1] + "|" + addrs[2];
     m_job = job;
     // The reader is single-driver: the refresh control stays disabled
     // until the worker reports back.
     auto reader = m_reader;
     const bool want_prices = ImGui::GetTime() - m_priced_at > 60.0;
-    const keyd::ChainFamily family = m_family;
-    const char* fam_key = family == keyd::ChainFamily::Sol ? "sol"
-        : family == keyd::ChainFamily::Btc                 ? "btc"
-                                                           : "evm";
-    std::vector<chains::ChainSpec> fam_chains;
-    for (const chains::ChainSpec& c : m_chains)
-        if (c.family == fam_key)
-            fam_chains.push_back(c);
-    std::thread([job, reader, address, want_prices, family,
-                    fam_chains = std::move(fam_chains), cache = m_prices] {
+    std::vector<chains::ChainSpec> btc_chains, sol_chains;
+    for (const chains::ChainSpec& c : m_chains) {
+        if (c.family == "btc")
+            btc_chains.push_back(c);
+        else if (c.family == "sol")
+            sol_chains.push_back(c);
+    }
+    std::thread([job, reader, addrs, want_prices,
+                    btc_chains = std::move(btc_chains),
+                    sol_chains = std::move(sol_chains), cache = m_prices] {
         try {
             // A number lands as a row through one dresser, whatever
             // engine read it.
@@ -138,29 +138,38 @@ void PortfolioPage::refresh(const std::string& address)
                 row.amount = units::format_units_display(amount, decimals);
                 job->rows.push_back(std::move(row));
             };
-            if (family != keyd::ChainFamily::Eth) {
-                for (const chains::ChainSpec& spec : fam_chains) {
-                    Row row;
-                    row.chain_id = spec.chain_id;
-                    row.chain = spec.name;
-                    row.symbol = spec.symbol;
-                    row.testnet = spec.testnet;
-                    try {
-                        if (family == keyd::ChainFamily::Sol) {
-                            chains::RpcClient rpc(spec);
-                            add_row(row, sol::native_balance(rpc, address),
-                                spec.decimals);
-                        } else {
-                            add_row(row, btc::native_balance(spec, address),
-                                spec.decimals);
-                        }
-                    } catch (const std::exception& e) {
-                        row.error = e.what();
-                        job->rows.push_back(std::move(row));
+            // Whole-coin rows through their family engines — an
+            // all-chain wallet fills all of them, a single-family one
+            // brings just its own address.
+            auto native_row = [&](const chains::ChainSpec& spec,
+                                  const std::string& address, bool is_sol) {
+                Row row;
+                row.chain_id = spec.chain_id;
+                row.chain = spec.name;
+                row.symbol = spec.symbol;
+                row.testnet = spec.testnet;
+                try {
+                    if (is_sol) {
+                        chains::RpcClient rpc(spec);
+                        add_row(row, sol::native_balance(rpc, address),
+                            spec.decimals);
+                    } else {
+                        add_row(row, btc::native_balance(spec, address),
+                            spec.decimals);
                     }
+                } catch (const std::exception& e) {
+                    row.error = e.what();
+                    job->rows.push_back(std::move(row));
                 }
-            } else {
-                for (const auto& h : reader->snapshot(address)) {
+            };
+            if (!addrs[1].empty())
+                for (const chains::ChainSpec& spec : btc_chains)
+                    native_row(spec, addrs[1], false);
+            if (!addrs[2].empty())
+                for (const chains::ChainSpec& spec : sol_chains)
+                    native_row(spec, addrs[2], true);
+            if (!addrs[0].empty()) {
+                for (const auto& h : reader->snapshot(addrs[0])) {
                     Row row;
                     row.chain_id = h.chain_id;
                     row.chain = h.chain;
@@ -261,7 +270,7 @@ void PortfolioPage::draw(const i18n::Catalog& tr)
         // switch's own refresh was swallowed by the single-driver
         // gate — chase the address now on screen.
         if (!current && !m_followed.empty())
-            refresh(m_followed);
+            refresh(m_addrs);
     }
 
     ImGui::Begin(
@@ -276,14 +285,19 @@ void PortfolioPage::draw(const i18n::Catalog& tr)
     }
 
     // Follow the vault: the active account's holdings, unasked —
-    // watch-only wallets included; reading needs no keys. The family
-    // travels with the address: a Solana wallet must never be probed
-    // with eth_calls, nor the reverse.
-    const std::string mine = m_vault.followed_address();
-    const keyd::ChainFamily fam = m_vault.active_family();
-    if (mine != m_followed || fam != m_family) {
-        m_followed = mine;
-        m_family = fam;
+    // watch-only wallets included; reading needs no keys. Each family
+    // is probed with its own face of the identity: a Solana address
+    // never meets eth_calls, nor the reverse — an all-chain wallet
+    // simply brings all of its faces at once.
+    const std::array<std::string, 3> mine = { m_vault.family_address("evm"),
+        m_vault.family_address("btc"), m_vault.family_address("sol") };
+    const std::string key
+        = mine[0].empty() && mine[1].empty() && mine[2].empty()
+        ? std::string()
+        : mine[0] + "|" + mine[1] + "|" + mine[2];
+    if (key != m_followed) {
+        m_followed = key;
+        m_addrs = mine;
         m_rows.clear();
         m_status.clear();
         m_fetched_at = 0.0;
@@ -291,10 +305,13 @@ void PortfolioPage::draw(const i18n::Catalog& tr)
     }
 
     // Identity belongs to an unlocked wallet only — a locked page has
-    // nothing to introduce, so it shows the empty state alone.
-    if (!mine.empty()) {
+    // nothing to introduce, so it shows the empty state alone. The
+    // header wears the wallet's own line; the other faces live in the
+    // receive QR and the per-row explorer links.
+    const std::string face = m_vault.followed_address();
+    if (!face.empty()) {
         kit_vspace(0.5f);
-        kit_identity(m_vault.active_name().c_str(), mine.c_str(), nullptr, 2.4f,
+        kit_identity(m_vault.active_name().c_str(), face.c_str(), nullptr, 2.4f,
             tr("ui.copy"), tr("ui.copied"));
     }
 
@@ -311,7 +328,7 @@ void PortfolioPage::draw(const i18n::Catalog& tr)
     } else if (!m_followed.empty()) {
         centered_x(kit_button_width(tr("portfolio.refresh")));
         if (kit_link_button(tr("portfolio.refresh")))
-            refresh(m_followed);
+            refresh(m_addrs);
         if (m_fetched_at > 0.0) {
             const int age = int(ImGui::GetTime() - m_fetched_at);
             char ago[32];
@@ -390,11 +407,17 @@ void PortfolioPage::draw(const i18n::Catalog& tr)
                 const char* addr_path = rspec && rspec->family == "sol"
                     ? "/account/"
                     : "/address/";
+                // The row's family picks which face of the identity
+                // the explorer should be asked about.
+                const std::string& row_addr = rspec && rspec->family == "sol"
+                    ? m_addrs[2]
+                    : rspec && rspec->family == "btc" ? m_addrs[1]
+                                                      : m_addrs[0];
                 if (has_ex && kit_menu_item(tr("asset.menu.addr.explorer")))
                     kit_open_url(
-                        (row.token.empty() ? ex->second + addr_path + m_followed
+                        (row.token.empty() ? ex->second + addr_path + row_addr
                                            : ex->second + "/token/" + row.token
-                                    + "?a=" + m_followed)
+                                    + "?a=" + row_addr)
                             .c_str());
                 // Removal is offered only for the user's own rows —
                 // the shipped set is config under digest, not a menu
