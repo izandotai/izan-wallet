@@ -192,3 +192,33 @@ TEST_CASE("ed25519 signing matches RFC 8032 and its own public key")
                  "085ac1e43e15996e458f3613d0f11d8c"
                  "387b2eaeb4302aeeb00d291612bb0c00"));
 }
+
+TEST_CASE("the send flow's answers parse offline")
+{
+    // getLatestBlockhash: the base58 hash back to its 32 bytes.
+    const auto hash = izan::sol::parse_blockhash_result(
+        R"({"context":{"slot":1},"value":{"blockhash":)"
+        R"("HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk",)"
+        R"("lastValidBlockHeight":100}})");
+    CHECK(hash[0] != 0); // decoded, not defaulted
+    CHECK_THROWS(izan::sol::parse_blockhash_result(
+        R"({"value":{"blockhash":"tooshort"}})"));
+
+    // getSignatureStatuses: the four fates plus the unknown.
+    using izan::sol::SigStatus;
+    auto status = [](const char* entry) {
+        return izan::sol::parse_signature_status(
+            std::string(R"({"context":{"slot":1},"value":[)") + entry + "]}");
+    };
+    CHECK(status("null") == SigStatus::Unknown);
+    CHECK(status(R"({"slot":5,"err":null,"confirmationStatus":"processed"})")
+        == SigStatus::Processed);
+    CHECK(status(R"({"slot":5,"err":null,"confirmationStatus":"confirmed"})")
+        == SigStatus::Confirmed);
+    CHECK(status(R"({"slot":5,"err":null,"confirmationStatus":"finalized"})")
+        == SigStatus::Finalized);
+    CHECK(status(R"({"slot":5,"err":{"InstructionError":[0,1]},)"
+                 R"("confirmationStatus":"finalized"})")
+        == SigStatus::Failed);
+    CHECK_THROWS(izan::sol::parse_signature_status(R"({"value":[]})"));
+}

@@ -1,6 +1,8 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -39,5 +41,31 @@ std::vector<SolSig> parse_signatures(std::string_view result_json);
 // The 25 most recent signatures touching the address, newest first.
 std::vector<SolSig> recent_signatures(
     chains::RpcClient& rpc, std::string_view address);
+
+// ---- The send flow's network legs; each parse_* grades offline. ----
+
+// getLatestBlockhash → the 32 bytes a transfer message carries.
+std::array<uint8_t, 32> parse_blockhash_result(std::string_view result_json);
+std::array<uint8_t, 32> latest_blockhash(chains::RpcClient& rpc);
+
+// sendTransaction over base64; the node answers with the signature it
+// filed the transaction under.
+std::string send_transaction(
+    chains::RpcClient& rpc, std::span<const uint8_t> tx);
+
+// getSignatureStatuses, one signature deep.
+enum class SigStatus : uint8_t {
+    Unknown, // the node has not seen it (yet)
+    Processed,
+    Confirmed,
+    Finalized,
+    Failed, // landed with an error — on-chain and lost
+};
+SigStatus parse_signature_status(std::string_view result_json);
+SigStatus signature_status(chains::RpcClient& rpc, std::string_view signature);
+
+// getMinimumBalanceForRentExemption(0): the lamport floor below which
+// a bare account cannot exist — the send form's guard rail.
+uint64_t rent_exempt_minimum(chains::RpcClient& rpc);
 
 }
