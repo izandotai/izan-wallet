@@ -456,6 +456,13 @@ int main(int argc, char** argv)
             ImGuiWindow* shelf = ImGui::FindWindowByName("###portfolio-page");
             if (ledger && shelf && ledger->DockId == 0 && shelf->DockId != 0)
                 ImGui::DockBuilderDockWindow("###history-page", shelf->DockId);
+            // Same adoption for the exchange desk: layouts saved before
+            // the swap window existed float it — tuck it in beside the
+            // send page, where the templates would have put it.
+            ImGuiWindow* desk = ImGui::FindWindowByName("###swap-page");
+            ImGuiWindow* teller = ImGui::FindWindowByName("###send-page");
+            if (desk && teller && desk->DockId == 0 && teller->DockId != 0)
+                ImGui::DockBuilderDockWindow("###swap-page", teller->DockId);
         }
         static int dump_frame = 0;
         ++dump_frame;
