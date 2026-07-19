@@ -6,6 +6,12 @@
 
 #include <cstdlib>
 
+#include <chrono>
+#include <cstdlib>
+#include <thread>
+
+#include <sodium.h>
+
 #include "core/crypto/sol.hpp"
 #include "domain/chains/chain_spec.hpp"
 #include "domain/sol/sol_tx.hpp"
@@ -221,4 +227,77 @@ TEST_CASE("the send flow's answers parse offline")
                  R"("confirmationStatus":"finalized"})")
         == SigStatus::Failed);
     CHECK_THROWS(izan::sol::parse_signature_status(R"({"value":[]})"));
+}
+
+// The chain itself judges the whole send stack: airdropped devnet
+// lamports, a transfer encoded, signed and broadcast by our own code,
+// confirmed by consensus. Run with:
+//   IZAN_SOL_DEVNET=1 build/izan_tests.exe -tc="*devnet*"
+TEST_CASE("a devnet transfer survives the real chain"
+    * doctest::skip(std::getenv("IZAN_SOL_DEVNET") == nullptr))
+{
+    izan::chains::ChainSpec spec;
+    spec.chain_id = 502;
+    spec.name = "Solana Devnet";
+    spec.symbol = "SOL";
+    spec.decimals = 9;
+    spec.rpc = { "https://api.devnet.solana.com" };
+    spec.testnet = true;
+    spec.family = "sol";
+    izan::chains::RpcClient rpc(spec);
+
+    // Two fresh identities: a funded sender, an empty recipient.
+    std::array<uint8_t, 32> seed {};
+    randombytes_buf(seed.data(), seed.size());
+    const std::string sender = izan::crypto::sol_key_address(seed);
+    std::array<uint8_t, 32> rseed {};
+    randombytes_buf(rseed.data(), rseed.size());
+    const std::string receiver = izan::crypto::sol_key_address(rseed);
+
+    // Devnet faucet: rate limits are weather, not a code verdict.
+    std::string drop;
+    try {
+        drop = rpc.call("requestAirdrop", "[\"" + sender + "\",1000000000]");
+    } catch (const std::exception& e) {
+        MESSAGE("devnet faucet unavailable: ", std::string(e.what()));
+        return;
+    }
+    // The answer is the airdrop's signature, quoted.
+    REQUIRE(drop.size() > 2);
+    const std::string drop_sig = drop.substr(1, drop.size() - 2);
+    bool funded = false;
+    for (int i = 0; i < 30 && !funded; ++i) {
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+        const auto st = izan::sol::signature_status(rpc, drop_sig);
+        funded = st == izan::sol::SigStatus::Confirmed
+            || st == izan::sol::SigStatus::Finalized;
+    }
+    if (!funded) {
+        MESSAGE("airdrop never confirmed; devnet weather, aborting live leg");
+        return;
+    }
+
+    // Enough to clear the recipient's rent floor, twice over.
+    const uint64_t rent = izan::sol::rent_exempt_minimum(rpc);
+    const uint64_t lamports = rent * 2;
+    const auto hash = izan::sol::latest_blockhash(rpc);
+    const auto msg
+        = izan::sol::encode_transfer_message(sender, receiver, lamports, hash);
+    const auto sig = izan::crypto::sol_sign(seed, msg);
+    const std::string tx_sig
+        = izan::sol::send_transaction(rpc, izan::sol::assemble_tx(sig, msg));
+    REQUIRE(!tx_sig.empty());
+
+    bool landed = false;
+    for (int i = 0; i < 30 && !landed; ++i) {
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+        const auto st = izan::sol::signature_status(rpc, tx_sig);
+        REQUIRE(st != izan::sol::SigStatus::Failed);
+        landed = st == izan::sol::SigStatus::Confirmed
+            || st == izan::sol::SigStatus::Finalized;
+    }
+    REQUIRE(landed);
+    CHECK(izan::sol::native_balance(rpc, receiver).to_dec()
+        == std::to_string(lamports));
+    MESSAGE("devnet transfer confirmed: ", tx_sig);
 }
