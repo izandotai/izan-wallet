@@ -220,6 +220,20 @@ void SendPage::poll_job()
     const int phase = m_job->phase.load();
     if (phase == 0)
         return;
+    if (m_job->requote) {
+        // A review refresh lands in place — or, on failure, quietly
+        // leaves the standing figures and waits out another window.
+        if (m_stage == Stage::Review && phase == 1) {
+            m_tx.nonce = m_job->nonce;
+            m_tx.gas_limit = m_job->gas;
+            m_tx.max_priority_fee_per_gas
+                = m_job->fees.max_priority_fee_per_gas;
+            m_tx.max_fee_per_gas = m_job->fees.max_fee_per_gas;
+        }
+        m_quoted_at = ImGui::GetTime();
+        m_job.reset();
+        return;
+    }
     if (phase == 1) {
         if (m_stage == Stage::Quoting) {
             m_tx.nonce = m_job->nonce;
@@ -240,6 +254,7 @@ void SendPage::poll_job()
             m_spl_token2022 = m_job->token2022;
             m_spl_rent = m_job->token_rent;
             m_stage = Stage::Review;
+            m_quoted_at = ImGui::GetTime();
             m_focus_pass = true;
             m_job.reset();
             return;
@@ -516,6 +531,32 @@ void SendPage::begin_review()
             job->phase.store(2);
         } catch (...) {
             // Anything escaping a detached thread is process death.
+            job->error = "worker failed";
+            job->phase.store(2);
+        }
+    }).detach();
+}
+
+// The EVM gas market moves while the review sits open; every window
+// the figures are re-fetched in place, exactly like the swap page.
+// Once a proposal is queued the draft is frozen and never requoted.
+void SendPage::start_requote()
+{
+    auto job = std::make_shared<Job>();
+    job->requote = true;
+    m_job = job;
+    std::thread([job, spec = selected_chain(), from = m_from,
+                    draft = m_tx]() mutable {
+        try {
+            chains::RpcClient rpc(std::move(spec));
+            job->nonce = tx::next_nonce(rpc, from);
+            job->gas = tx::estimate_gas(rpc, from, draft);
+            job->fees = tx::quote_fees(rpc);
+            job->phase.store(1);
+        } catch (const std::exception& e) {
+            job->error = e.what();
+            job->phase.store(2);
+        } catch (...) {
             job->error = "worker failed";
             job->phase.store(2);
         }
@@ -1135,6 +1176,24 @@ void SendPage::draw_confirm_dialog(const i18n::Catalog& tr)
                 (unsigned long long)m_tx.gas_limit,
                 units::format_units_display(m_tx.max_fee_per_gas, 9).c_str());
             centered_caption(plumbing);
+
+            // The gas market is perishable too: refresh the figures
+            // every window until a proposal freezes the draft.
+            constexpr double kQuoteLife = 15.0;
+            const double age = ImGui::GetTime() - m_quoted_at;
+            if (m_proposal == 0) {
+                if (m_job) {
+                    centered_caption(tr("swap.quoting"));
+                } else {
+                    char fresh[96];
+                    std::snprintf(fresh, sizeof fresh, "%s %ds",
+                        tr("swap.requote"),
+                        int(std::max(0.0, kQuoteLife - age)) + 1);
+                    centered_caption(fresh);
+                    if (age > kQuoteLife)
+                        start_requote();
+                }
+            }
         }
         kit_vspace(0.4f);
 
@@ -1150,13 +1209,15 @@ void SendPage::draw_confirm_dialog(const i18n::Catalog& tr)
                 m_status_is_key ? tr(m_status.c_str()) : m_status.c_str(),
                 ImGui::GetCursorPosX(), content);
         }
+        // While a refresh is in flight there is nothing stable to
+        // sign; the confirm waits for figures that are on screen.
         const bool has_pass = strnlen(m_pass.data(), m_pass.size()) > 0;
-        const int choice
-            = kit_dialog_buttons(tr("ui.cancel"), tr("send.confirm"), has_pass);
+        const int choice = kit_dialog_buttons(
+            tr("ui.cancel"), tr("send.confirm"), has_pass && !m_job);
         if (choice == 1) {
             cancel_flow();
             kit_dialog_close();
-        } else if (choice == 2 || (submitted && has_pass)) {
+        } else if ((choice == 2 || (submitted && has_pass)) && !m_job) {
             confirm_send();
         }
         break;

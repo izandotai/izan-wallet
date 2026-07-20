@@ -919,13 +919,16 @@ void SwapPage::draw_confirm_dialog(const i18n::Catalog& tr)
                 error_note(
                     m_status_is_key ? tr(m_status.c_str()) : m_status.c_str(),
                     ImGui::GetCursorPosX(), content);
+            // A quote in flight is nothing to sign yet; the confirm
+            // waits for figures that are actually on screen.
             const bool has_pass_sol = strnlen(m_pass.data(), m_pass.size()) > 0;
             const int choice_sol = kit_dialog_buttons(
-                tr("ui.cancel"), tr("swap.confirm"), has_pass_sol);
+                tr("ui.cancel"), tr("swap.confirm"), has_pass_sol && !m_job);
             if (choice_sol == 1) {
                 cancel_flow();
                 kit_dialog_close();
-            } else if (choice_sol == 2 || (submitted_sol && has_pass_sol)) {
+            } else if ((choice_sol == 2 || (submitted_sol && has_pass_sol))
+                && !m_job) {
                 confirm_swap();
             }
             break;
@@ -983,13 +986,15 @@ void SwapPage::draw_confirm_dialog(const i18n::Catalog& tr)
                 m_status_is_key ? tr(m_status.c_str()) : m_status.c_str(),
                 ImGui::GetCursorPosX(), content);
         }
+        // Same gate as the sol lane: no confirming a quote that is
+        // being replaced under the cursor.
         const bool has_pass = strnlen(m_pass.data(), m_pass.size()) > 0;
-        const int choice
-            = kit_dialog_buttons(tr("ui.cancel"), tr("swap.confirm"), has_pass);
+        const int choice = kit_dialog_buttons(
+            tr("ui.cancel"), tr("swap.confirm"), has_pass && !m_job);
         if (choice == 1) {
             cancel_flow();
             kit_dialog_close();
-        } else if (choice == 2 || (submitted && has_pass)) {
+        } else if ((choice == 2 || (submitted && has_pass)) && !m_job) {
             confirm_swap();
         }
         break;

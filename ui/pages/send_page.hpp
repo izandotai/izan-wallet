@@ -67,6 +67,7 @@ private:
     struct Job {
         std::atomic<int> phase { 0 }; // 0 running, 1 ok, 2 failed
         std::atomic<int> step { 0 };  // Delivering: 1 signed, 2 broadcast
+        bool requote = false; // refreshes review figures in place
         std::string error;
         // quote results
         uint64_t nonce = 0;
@@ -103,6 +104,7 @@ private:
     void draw_form(const i18n::Catalog& tr);
     void draw_confirm_dialog(const i18n::Catalog& tr);
     void begin_review();
+    void start_requote();
     void begin_sol_review();
     void confirm_sol_send();
     void begin_btc_review();
@@ -136,6 +138,7 @@ private:
     // The reviewed draft; immutable once the proposal is submitted —
     // keyd signs the queue's copy of exactly these bytes.
     tx::Eip1559Tx m_tx;
+    double m_quoted_at = 0.0; // review figures' birth; 15s refresh
     std::string m_wallet_seen;  // last active wallet id; a switch resets
     std::string m_from;
     uint32_t m_account = 0;     // captured at review, rides the envelope

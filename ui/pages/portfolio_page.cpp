@@ -294,6 +294,10 @@ void PortfolioPage::draw(const i18n::Catalog& tr)
         const bool current = m_job->address == m_followed;
         if (phase == 1 && current) {
             m_rows = std::move(m_job->rows);
+            // Money reads first: rows holding a balance rise to the
+            // top, empty ones keep their registry order below them.
+            std::stable_partition(m_rows.begin(), m_rows.end(),
+                [](const Row& r) { return r.ok && r.approx > 0.0; });
             m_fetched_at = ImGui::GetTime();
             if (m_job->priced) {
                 m_prices = std::move(m_job->prices);

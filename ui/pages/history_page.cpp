@@ -260,6 +260,11 @@ void HistoryPage::draw(const i18n::Catalog& tr)
         m_rows.clear();
         m_status.clear();
         m_fetched_at = 0.0;
+        // A flight for the previous wallet may still be in the air —
+        // orphan it (its threads own the Job and die quietly) so the
+        // new address's ledger takes off now instead of queuing
+        // behind chains that no longer matter.
+        m_job.reset();
         refresh(mine);
     }
 
